@@ -1,4 +1,4 @@
-package com.rateLimiter.distributedRateLimiter;
+package com.rateLimiter.distributedratelimiter;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
