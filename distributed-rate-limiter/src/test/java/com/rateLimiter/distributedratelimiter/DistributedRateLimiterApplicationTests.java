@@ -1,4 +1,4 @@
-package com.rateLimiter.distributedRateLimiter;
+package com.rateLimiter.distributedratelimiter;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
