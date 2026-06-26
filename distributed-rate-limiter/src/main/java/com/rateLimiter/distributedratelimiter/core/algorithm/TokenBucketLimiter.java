@@ -4,6 +4,7 @@ import com.rateLimiter.distributedratelimiter.core.RateLimiter;
 import com.rateLimiter.distributedratelimiter.core.clock.ClockProvider;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitResult;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitRule;
+import com.rateLimiter.distributedratelimiter.core.utils.ValidationUtils;
 
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,6 +16,12 @@ public class TokenBucketLimiter implements RateLimiter {
 
     private final ClockProvider clockProvider;
 
+    /**
+     * TOKEN_COST is currently fixed at 1 token per request.
+     * Retry-after calculation assumes a constant request cost.
+     * Supporting weighted requests would require replacing
+     * TOKEN_COST with a per-request cost.
+     */
     private static final double TOKEN_COST = 1.0;
 
     private final ConcurrentHashMap<String,Bucket> buckets=new ConcurrentHashMap<>();
@@ -34,7 +41,7 @@ public class TokenBucketLimiter implements RateLimiter {
 
     @Override
     public RateLimitResult tryAcquire(String key,RateLimitRule rule){
-        validateInputs(key,rule);
+        ValidationUtils.validateInputs(key,rule);
         ReentrantLock lock=locks.computeIfAbsent(key,ignored->new ReentrantLock());
         lock.lock();
         try {
@@ -54,21 +61,13 @@ public class TokenBucketLimiter implements RateLimiter {
                 buckets.put(key,new Bucket(remainingTokens,now));
                 return new RateLimitResult(true,(long) remainingTokens,0);
             }
-            long nanosUntilNextToken=(long)((1.0-availableTokens)/refillRatePerNano);
+            long nanosUntilNextToken=(long)((TOKEN_COST-availableTokens)/refillRatePerNano);
             buckets.put(key,new Bucket(availableTokens,now));
             long retryAfterMillis=nanosUntilNextToken/1_000_000L;
             return new RateLimitResult(false,0,Math.max(retryAfterMillis,1));
         }finally {
             lock.unlock();
         }
-    }
-
-    private void validateInputs(String key,RateLimitRule rule){
-        Objects.requireNonNull(key,"Key must be non null");
-        Objects.requireNonNull(rule,"Rule must be non null");
-        if(key.isBlank()) throw new IllegalArgumentException("Key must not be blank");
-        if(rule.limit()<=0) throw new IllegalArgumentException("Limit must be greater than 0");
-        if(rule.window().isZero() || rule.window().isNegative()) throw new IllegalArgumentException("Window must be greater than 0");
     }
 
 }
