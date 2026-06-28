@@ -7,8 +7,10 @@ import com.rateLimiter.distributedratelimiter.core.model.RateLimitRule;
 import com.rateLimiter.distributedratelimiter.exceptions.CircuitBreakerOpenException;
 
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class CircuitBreakerRateLimiter implements RateLimiter {
 
@@ -21,6 +23,11 @@ public class CircuitBreakerRateLimiter implements RateLimiter {
 
     private final AtomicInteger consecutiveFailures =
             new AtomicInteger();
+
+    private final AtomicBoolean probeInProgress =
+            new AtomicBoolean(false);
+
+    private final ReentrantLock stateTransitionLock=new ReentrantLock();
 
     private volatile long openTimestamp;
 
@@ -42,30 +49,71 @@ public class CircuitBreakerRateLimiter implements RateLimiter {
                 "Clock provider must not be null");
     }
 
+    RateLimiter getDelegate() {
+        return delegate;
+    }
+
     CircuitBreakerState getState() {
         return state.get();
     }
-    @Override
-    public RateLimitResult tryAcquire(String key, RateLimitRule rule) {
 
-        CircuitBreakerState currentState = state.get();
-        if (currentState == CircuitBreakerState.OPEN) {
-            if (shouldTransitionToHalfOpen()) {
-                state.set(CircuitBreakerState.HALF_OPEN);
-            } else {
-                throw new CircuitBreakerOpenException();
+    private void beforeRequest() {
+        while (true) {
+            CircuitBreakerState currentState = state.get();
+
+            switch (currentState) {
+                case CLOSED:
+                    return;
+
+                case OPEN:
+                    if (!shouldTransitionToHalfOpen()) {
+                        throw new CircuitBreakerOpenException();
+                    }
+                    transitionToHalfOpen();
+                    // state changed, re-evaluate
+                    continue;
+
+                case HALF_OPEN:
+                    if (probeInProgress.compareAndSet(false, true)) {
+                        return;
+                    }
+                    throw new CircuitBreakerOpenException();
             }
         }
+    }
 
+    private void transitionToHalfOpen() {
+        if (!stateTransitionLock.tryLock()) {
+            throw new CircuitBreakerOpenException();
+        }
+        try {
+            if (state.get() != CircuitBreakerState.OPEN) {
+                return;
+            }
+            if (!shouldTransitionToHalfOpen()) {
+                throw new CircuitBreakerOpenException();
+            }
+            state.set(CircuitBreakerState.HALF_OPEN);
+            probeInProgress.set(false);
+        } finally {
+            stateTransitionLock.unlock();
+        }
+    }
+
+    @Override
+    public RateLimitResult tryAcquire(
+            String key,
+            RateLimitRule rule) {
+
+        beforeRequest();
         try {
             RateLimitResult result = delegate.tryAcquire(key, rule);
             onSuccess();
             return result;
-        } catch (Exception exception) {
+        } catch (Exception ex) {
             onFailure();
-            throw exception;
+            throw ex;
         }
-
     }
 
     private boolean shouldTransitionToHalfOpen() {
@@ -79,32 +127,28 @@ public class CircuitBreakerRateLimiter implements RateLimiter {
     private void onSuccess() {
 
         consecutiveFailures.set(0);
-        state.set(CircuitBreakerState.CLOSED);
+        if (state.get() == CircuitBreakerState.HALF_OPEN) {
+            state.set(CircuitBreakerState.CLOSED);
+            probeInProgress.set(false);
+        }
     }
 
     private void onFailure() {
 
-        /*
-         * In HALF_OPEN even a single failure should
-         * immediately reopen the circuit.
-         */
         if (state.get() == CircuitBreakerState.HALF_OPEN) {
             consecutiveFailures.set(0);
             reopenCircuit();
             return;
         }
-
         int failures = consecutiveFailures.incrementAndGet();
-
         if (failures >= config.failureThreshold()) {
             reopenCircuit();
         }
-
     }
 
     private void reopenCircuit() {
-
         state.set(CircuitBreakerState.OPEN);
         openTimestamp = clockProvider.currentTimeMillis();
+        probeInProgress.set(false);
     }
 }

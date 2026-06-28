@@ -9,6 +9,8 @@ import com.rateLimiter.distributedratelimiter.exceptions.CircuitBreakerOpenExcep
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -261,5 +263,267 @@ class CircuitBreakerRateLimiterTest {
         assertEquals(
                 CircuitBreakerState.CLOSED,
                 circuitBreaker.getState());
+    }
+
+    @Test
+    void shouldAllowOnlySingleProbeRequestInHalfOpenState()
+            throws Exception {
+
+        RateLimiter delegate = mock(RateLimiter.class);
+
+        // Open the circuit first
+        when(delegate.tryAcquire(any(), any()))
+                .thenThrow(new RuntimeException("Redis down"));
+
+        MutableClockProvider clock =
+                new MutableClockProvider(0);
+
+        CircuitBreakerRateLimiter circuitBreaker =
+                new CircuitBreakerRateLimiter(
+                        delegate,
+                        config,
+                        clock);
+
+        // Reach failure threshold
+        for (int i = 0; i < 3; i++) {
+
+            assertThrows(
+                    RuntimeException.class,
+                    () -> circuitBreaker.tryAcquire(
+                            "user",
+                            rule));
+        }
+
+        assertEquals(
+                CircuitBreakerState.OPEN,
+                circuitBreaker.getState());
+
+        // Move breaker into HALF_OPEN eligibility
+        clock.advance(Duration.ofSeconds(31));
+
+        CountDownLatch probeEntered =
+                new CountDownLatch(1);
+
+        CountDownLatch releaseProbe =
+                new CountDownLatch(1);
+
+        reset(delegate);
+
+        when(delegate.tryAcquire(any(), any()))
+                .thenAnswer(invocation -> {
+
+                    probeEntered.countDown();
+
+                    // Keep probe blocked so all other
+                    // threads observe HALF_OPEN
+                    releaseProbe.await(
+                            5,
+                            TimeUnit.SECONDS);
+
+                    return new RateLimitResult(
+                            true,
+                            9,
+                            0);
+                });
+
+        int threadCount = 100;
+
+        ExecutorService executor =
+                Executors.newFixedThreadPool(threadCount);
+
+        CyclicBarrier startBarrier =
+                new CyclicBarrier(threadCount);
+
+        CountDownLatch allDone =
+                new CountDownLatch(threadCount);
+
+        AtomicInteger successfulRequests =
+                new AtomicInteger();
+
+        AtomicInteger rejectedRequests =
+                new AtomicInteger();
+
+        for (int i = 0; i < threadCount; i++) {
+
+            executor.submit(() -> {
+
+                try {
+
+                    // Start all threads simultaneously
+                    startBarrier.await();
+
+                    circuitBreaker.tryAcquire(
+                            "user",
+                            rule);
+
+                    successfulRequests.incrementAndGet();
+
+                } catch (CircuitBreakerOpenException ex) {
+
+                    rejectedRequests.incrementAndGet();
+
+                } catch (Exception ex) {
+
+                    fail("Unexpected exception: " + ex);
+
+                } finally {
+
+                    allDone.countDown();
+                }
+            });
+        }
+
+        // Wait until exactly one thread enters delegate
+        assertTrue(
+                probeEntered.await(
+                        5,
+                        TimeUnit.SECONDS));
+
+        // While probe is blocked, only one invocation
+        // should have reached delegate
+        verify(delegate, timeout(1000).times(1))
+                .tryAcquire(any(), any());
+
+        // Release the probe
+        releaseProbe.countDown();
+
+        assertTrue(
+                allDone.await(
+                        5,
+                        TimeUnit.SECONDS));
+
+        executor.shutdown();
+
+        assertTrue(successfulRequests.get() >= 1);
+
+        assertTrue(rejectedRequests.get() >= 1);
+
+        assertEquals(
+                CircuitBreakerState.CLOSED,
+                circuitBreaker.getState());
+    }
+
+    @Test
+    void shouldThrowWhenDelegateIsNull() {
+
+        MutableClockProvider clock =
+                new MutableClockProvider(0);
+
+        assertThrows(
+                NullPointerException.class,
+                () -> new CircuitBreakerRateLimiter(
+                        null,
+                        config,
+                        clock));
+    }
+
+    @Test
+    void shouldThrowWhenConfigIsNull() {
+
+        RateLimiter delegate = mock(RateLimiter.class);
+
+        MutableClockProvider clock =
+                new MutableClockProvider(0);
+
+        assertThrows(
+                NullPointerException.class,
+                () -> new CircuitBreakerRateLimiter(
+                        delegate,
+                        null,
+                        clock));
+    }
+
+    @Test
+    void shouldThrowWhenClockProviderIsNull() {
+
+        RateLimiter delegate = mock(RateLimiter.class);
+
+        assertThrows(
+                NullPointerException.class,
+                () -> new CircuitBreakerRateLimiter(
+                        delegate,
+                        config,
+                        null));
+    }
+
+    @Test
+    void shouldResetFailureCountAfterSuccessfulRequest() {
+
+        RateLimiter delegate = mock(RateLimiter.class);
+
+        when(delegate.tryAcquire(any(), any()))
+                .thenThrow(new RuntimeException("Redis down"))
+                .thenReturn(
+                        new RateLimitResult(
+                                true,
+                                9,
+                                0));
+
+        MutableClockProvider clock =
+                new MutableClockProvider(0);
+
+        CircuitBreakerRateLimiter circuitBreaker =
+                new CircuitBreakerRateLimiter(
+                        delegate,
+                        config,
+                        clock);
+
+        assertThrows(
+                RuntimeException.class,
+                () -> circuitBreaker.tryAcquire("user", rule));
+
+        circuitBreaker.tryAcquire("user", rule);
+
+        assertEquals(
+                CircuitBreakerState.CLOSED,
+                circuitBreaker.getState());
+
+        // One more failure should NOT open the circuit
+
+        when(delegate.tryAcquire(any(), any()))
+                .thenThrow(new RuntimeException("Redis down"));
+
+        assertThrows(
+                RuntimeException.class,
+                () -> circuitBreaker.tryAcquire("user", rule));
+
+        assertEquals(
+                CircuitBreakerState.CLOSED,
+                circuitBreaker.getState());
+    }
+
+    @Test
+    void shouldContinueRejectingRequestsWhileCircuitIsOpen() {
+
+        RateLimiter delegate = mock(RateLimiter.class);
+
+        when(delegate.tryAcquire(any(), any()))
+                .thenThrow(new RuntimeException("Redis down"));
+
+        MutableClockProvider clock =
+                new MutableClockProvider(0);
+
+        CircuitBreakerRateLimiter circuitBreaker =
+                new CircuitBreakerRateLimiter(
+                        delegate,
+                        config,
+                        clock);
+
+        for (int i = 0; i < 3; i++) {
+
+            assertThrows(
+                    RuntimeException.class,
+                    () -> circuitBreaker.tryAcquire("user", rule));
+        }
+
+        for (int i = 0; i < 10; i++) {
+
+            assertThrows(
+                    CircuitBreakerOpenException.class,
+                    () -> circuitBreaker.tryAcquire("user", rule));
+        }
+
+        verify(delegate, times(3))
+                .tryAcquire(any(), any());
     }
 }
