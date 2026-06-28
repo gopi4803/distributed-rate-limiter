@@ -62,13 +62,16 @@ public class RateLimiterRegistryConfiguration {
             RateLimiter delegate,
             ClockProvider clockProvider) {
 
-        return new CircuitBreakerRateLimiter(
-                new ResilientRateLimiter(
+        RateLimiter protectedLimiter =
+                new CircuitBreakerRateLimiter(
                         delegate,
-                        FailureStrategy.FAIL_OPEN),
-                new CircuitBreakerConfig(
-                        5,
-                        Duration.ofSeconds(30)),
-                clockProvider);
+                        new CircuitBreakerConfig(
+                                5,
+                                Duration.ofSeconds(30)),
+                        clockProvider);
+
+        return new ResilientRateLimiter(
+                protectedLimiter,
+                FailureStrategy.FAIL_OPEN);
     }
 }

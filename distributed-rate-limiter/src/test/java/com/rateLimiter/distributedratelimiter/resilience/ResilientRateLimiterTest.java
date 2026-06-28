@@ -4,8 +4,9 @@ import com.rateLimiter.distributedratelimiter.core.RateLimiter;
 import com.rateLimiter.distributedratelimiter.core.model.Algorithm;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitResult;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitRule;
+import com.rateLimiter.distributedratelimiter.exceptions.CircuitBreakerOpenException;
+import com.rateLimiter.distributedratelimiter.exceptions.RedisExecutionException;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Duration;
 
@@ -14,42 +15,186 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@Testcontainers
-public class ResilientRateLimiterTest {
+class ResilientRateLimiterTest {
 
-    private static class FailingLimiter implements RateLimiter{
+    private static final RateLimitRule RULE =
+            new RateLimitRule(
+                    "test",
+                    10,
+                    Duration.ofMinutes(1),
+                    Algorithm.TOKEN_BUCKET);
+
+    private static class RedisFailingLimiter
+            implements RateLimiter {
+
         @Override
-        public RateLimitResult tryAcquire(String key, RateLimitRule rule){
-            throw new RuntimeException("Redis down");
+        public RateLimitResult tryAcquire(
+                String key,
+                RateLimitRule rule) {
+
+            throw new RedisExecutionException(
+                    "Redis unavailable",
+                    new RuntimeException("Redis down"));
+        }
+    }
+
+    private static class CircuitOpenLimiter
+            implements RateLimiter {
+
+        @Override
+        public RateLimitResult tryAcquire(
+                String key,
+                RateLimitRule rule) {
+
+            throw new CircuitBreakerOpenException();
+        }
+    }
+
+    private static class InvalidInputLimiter
+            implements RateLimiter {
+
+        @Override
+        public RateLimitResult tryAcquire(
+                String key,
+                RateLimitRule rule) {
+
+            throw new IllegalArgumentException(
+                    "Invalid rule");
         }
     }
 
     @Test
-    void shouldDelegateWhenNoFailure(){
-        RateLimiter limiter=mock(RateLimiter.class);
-        RateLimitRule rule=new RateLimitRule("test",10, Duration.ofMinutes(1), Algorithm.TOKEN_BUCKET);
-        when(limiter.tryAcquire(any(),any()))
-                .thenReturn(new RateLimitResult(true,9,0));
-        ResilientRateLimiter resilient=new ResilientRateLimiter(limiter,FailureStrategy.FAIL_OPEN);
-        RateLimitResult result=resilient.tryAcquire("user",rule);
+    void shouldDelegateWhenNoFailure() {
+
+        RateLimiter delegate = mock(RateLimiter.class);
+
+        when(delegate.tryAcquire(any(), any()))
+                .thenReturn(
+                        new RateLimitResult(
+                                true,
+                                9,
+                                0));
+
+        ResilientRateLimiter resilient =
+                new ResilientRateLimiter(
+                        delegate,
+                        FailureStrategy.FAIL_OPEN);
+
+        RateLimitResult result =
+                resilient.tryAcquire(
+                        "user",
+                        RULE);
+
         assertTrue(result.allowed());
-        assertEquals(9,result.remaining());
+        assertEquals(9, result.remaining());
+        assertEquals(0, result.retryAfterMs());
     }
 
     @Test
-    void shouldAllowRequestWhenOpenAndDelegateFails(){
-        ResilientRateLimiter resilient=new ResilientRateLimiter(new FailingLimiter(),FailureStrategy.FAIL_OPEN);
-        RateLimitRule rule=new RateLimitRule("test",10,Duration.ofMinutes(1),Algorithm.TOKEN_BUCKET);
-        RateLimitResult result=resilient.tryAcquire("user",rule);
+    void shouldAllowRequestWhenFailOpenAndRedisFails() {
+
+        ResilientRateLimiter resilient =
+                new ResilientRateLimiter(
+                        new RedisFailingLimiter(),
+                        FailureStrategy.FAIL_OPEN);
+
+        RateLimitResult result =
+                resilient.tryAcquire(
+                        "user",
+                        RULE);
+
         assertTrue(result.allowed());
+        assertEquals(-1, result.remaining());
+        assertEquals(0, result.retryAfterMs());
     }
 
     @Test
-    void shouldRejectRequestWhenFailClosedAndDelegateFails(){
-        ResilientRateLimiter resilient=new ResilientRateLimiter(new FailingLimiter(),FailureStrategy.FAIL_CLOSED);
-        RateLimitRule rule=new RateLimitRule("test",10,Duration.ofMinutes(1),Algorithm.SLIDING_WINDOW_COUNTER);
-        RateLimitResult result=resilient.tryAcquire("user",rule);
+    void shouldRejectRequestWhenFailClosedAndRedisFails() {
+
+        ResilientRateLimiter resilient =
+                new ResilientRateLimiter(
+                        new RedisFailingLimiter(),
+                        FailureStrategy.FAIL_CLOSED);
+
+        RateLimitResult result =
+                resilient.tryAcquire(
+                        "user",
+                        RULE);
+
+        assertFalse(result.allowed());
+        assertEquals(0, result.remaining());
+        assertEquals(
+                Long.MAX_VALUE,
+                result.retryAfterMs());
+    }
+
+    @Test
+    void shouldAllowRequestWhenCircuitIsOpenAndFailOpen() {
+
+        ResilientRateLimiter resilient =
+                new ResilientRateLimiter(
+                        new CircuitOpenLimiter(),
+                        FailureStrategy.FAIL_OPEN);
+
+        RateLimitResult result =
+                resilient.tryAcquire(
+                        "user",
+                        RULE);
+
+        assertTrue(result.allowed());
+        assertEquals(-1, result.remaining());
+    }
+
+    @Test
+    void shouldRejectRequestWhenCircuitIsOpenAndFailClosed() {
+
+        ResilientRateLimiter resilient =
+                new ResilientRateLimiter(
+                        new CircuitOpenLimiter(),
+                        FailureStrategy.FAIL_CLOSED);
+
+        RateLimitResult result =
+                resilient.tryAcquire(
+                        "user",
+                        RULE);
+
         assertFalse(result.allowed());
     }
 
+    @Test
+    void shouldThrowWhenDelegateIsNull() {
+
+        assertThrows(
+                NullPointerException.class,
+                () -> new ResilientRateLimiter(
+                        null,
+                        FailureStrategy.FAIL_OPEN));
+    }
+
+    @Test
+    void shouldThrowWhenFailureStrategyIsNull() {
+
+        RateLimiter delegate = mock(RateLimiter.class);
+
+        assertThrows(
+                NullPointerException.class,
+                () -> new ResilientRateLimiter(
+                        delegate,
+                        null));
+    }
+
+    @Test
+    void shouldNotFallbackForApplicationExceptions() {
+
+        ResilientRateLimiter resilient =
+                new ResilientRateLimiter(
+                        new InvalidInputLimiter(),
+                        FailureStrategy.FAIL_OPEN);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> resilient.tryAcquire(
+                        "user",
+                        RULE));
+    }
 }
