@@ -1,0 +1,284 @@
+package com.rateLimiter.distributedratelimiter.redis;
+
+import com.rateLimiter.distributedratelimiter.core.model.Algorithm;
+import com.rateLimiter.distributedratelimiter.core.model.RateLimitResult;
+import com.rateLimiter.distributedratelimiter.core.model.RateLimitRule;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+@Testcontainers
+class RedisLuaSlidingWindowLimiterTest {
+
+    @Container
+    static GenericContainer<?> redisContainer =
+            new GenericContainer<>("redis:7-alpine")
+                    .withExposedPorts(6379);
+
+    private RedisLuaSlidingWindowLimiter limiter;
+
+    private StringRedisTemplate template;
+
+    @BeforeEach
+    void setUp() {
+
+        LettuceConnectionFactory factory =
+                new LettuceConnectionFactory(
+                        redisContainer.getHost(),
+                        redisContainer.getMappedPort(6379));
+
+        factory.afterPropertiesSet();
+
+        template = new StringRedisTemplate(factory);
+        template.afterPropertiesSet();
+
+        // Test isolation
+        template.getConnectionFactory()
+                .getConnection()
+                .serverCommands()
+                .flushAll();
+
+        @SuppressWarnings({"rawtypes"})
+        DefaultRedisScript script =
+                new DefaultRedisScript();
+
+        script.setLocation(
+                new ClassPathResource(
+                        "scripts/sliding_window_counter.lua"));
+
+        script.setResultType(List.class);
+
+        limiter =
+                new RedisLuaSlidingWindowLimiter(
+                        template,
+                        script);
+    }
+
+    @Test
+    void shouldAllowRequestsWithinLimit() {
+
+        RateLimitRule rule =
+                new RateLimitRule(
+                        "test",
+                        5,
+                        Duration.ofMinutes(1),
+                        Algorithm.SLIDING_WINDOW_COUNTER);
+
+        for (int i = 0; i < 5; i++) {
+
+            assertTrue(
+                    limiter.tryAcquire(
+                            "user-1",
+                            rule).allowed());
+        }
+
+        assertFalse(
+                limiter.tryAcquire(
+                        "user-1",
+                        rule).allowed());
+    }
+
+    @Test
+    void shouldKeepWindowsIndependentAcrossKeys() {
+
+        RateLimitRule rule =
+                new RateLimitRule(
+                        "test",
+                        1,
+                        Duration.ofMinutes(1),
+                        Algorithm.SLIDING_WINDOW_COUNTER);
+
+        assertTrue(
+                limiter.tryAcquire(
+                        "user-A",
+                        rule).allowed());
+
+        assertTrue(
+                limiter.tryAcquire(
+                        "user-B",
+                        rule).allowed());
+
+        assertFalse(
+                limiter.tryAcquire(
+                        "user-A",
+                        rule).allowed());
+    }
+
+    @Test
+    void shouldReturnRetryAfterWhenBlocked() {
+
+        RateLimitRule rule =
+                new RateLimitRule(
+                        "test",
+                        1,
+                        Duration.ofSeconds(30),
+                        Algorithm.SLIDING_WINDOW_COUNTER);
+
+        assertTrue(
+                limiter.tryAcquire(
+                        "retry-user",
+                        rule).allowed());
+
+        RateLimitResult result =
+                limiter.tryAcquire(
+                        "retry-user",
+                        rule);
+
+        assertFalse(result.allowed());
+
+        assertTrue(result.retryAfterMs() > 0);
+    }
+
+    @Test
+    void shouldAllowRequestsAgainAfterWindowExpires()
+            throws InterruptedException {
+
+        RateLimitRule rule =
+                new RateLimitRule(
+                        "test",
+                        2,
+                        Duration.ofSeconds(2),
+                        Algorithm.SLIDING_WINDOW_COUNTER);
+
+        assertTrue(
+                limiter.tryAcquire(
+                        "window-user",
+                        rule).allowed());
+
+        assertTrue(
+                limiter.tryAcquire(
+                        "window-user",
+                        rule).allowed());
+
+        assertFalse(
+                limiter.tryAcquire(
+                        "window-user",
+                        rule).allowed());
+
+        // Wait for window expiration
+        Thread.sleep(2500);
+
+        assertTrue(
+                limiter.tryAcquire(
+                        "window-user",
+                        rule).allowed());
+    }
+
+    @Test
+    void shouldNeverExceedLimitUnderConcurrency()
+            throws InterruptedException {
+
+        RateLimitRule rule =
+                new RateLimitRule(
+                        "test",
+                        10,
+                        Duration.ofMinutes(1),
+                        Algorithm.SLIDING_WINDOW_COUNTER);
+
+        int threadCount = 500;
+
+        ExecutorService executor =
+                Executors.newFixedThreadPool(threadCount);
+
+        CountDownLatch readyLatch =
+                new CountDownLatch(threadCount);
+
+        CountDownLatch startLatch =
+                new CountDownLatch(1);
+
+        CountDownLatch completionLatch =
+                new CountDownLatch(threadCount);
+
+        AtomicInteger allowedRequests =
+                new AtomicInteger();
+
+        for (int i = 0; i < threadCount; i++) {
+
+            executor.submit(() -> {
+
+                try {
+
+                    readyLatch.countDown();
+
+                    startLatch.await();
+
+                    if (limiter.tryAcquire(
+                            "shared-key",
+                            rule).allowed()) {
+
+                        allowedRequests.incrementAndGet();
+                    }
+
+                } catch (InterruptedException e) {
+
+                    Thread.currentThread().interrupt();
+
+                } finally {
+
+                    completionLatch.countDown();
+                }
+            });
+        }
+
+        assertTrue(
+                readyLatch.await(
+                        5,
+                        TimeUnit.SECONDS));
+
+        startLatch.countDown();
+
+        assertTrue(
+                completionLatch.await(
+                        15,
+                        TimeUnit.SECONDS));
+
+        executor.shutdown();
+
+        System.out.println(
+                "Allowed Requests = "
+                        + allowedRequests.get());
+
+        assertEquals(
+                rule.limit(),
+                allowedRequests.get());
+    }
+
+    @Test
+    void shouldRejectRequestsAfterLimitIsReached() {
+
+        RateLimitRule rule =
+                new RateLimitRule(
+                        "test",
+                        3,
+                        Duration.ofMinutes(1),
+                        Algorithm.SLIDING_WINDOW_COUNTER);
+
+        for (int i = 0; i < 3; i++) {
+            assertTrue(
+                    limiter.tryAcquire(
+                            "limit-user",
+                            rule).allowed());
+        }
+
+        RateLimitResult result =
+                limiter.tryAcquire(
+                        "limit-user",
+                        rule);
+
+        assertFalse(result.allowed());
+        assertEquals(0, result.remaining());
+    }
+}
