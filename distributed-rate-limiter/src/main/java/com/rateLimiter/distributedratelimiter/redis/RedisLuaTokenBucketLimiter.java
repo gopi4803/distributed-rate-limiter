@@ -1,6 +1,5 @@
 package com.rateLimiter.distributedratelimiter.redis;
 
-import com.rateLimiter.distributedratelimiter.core.RateLimiter;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitResult;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitRule;
 import com.rateLimiter.distributedratelimiter.core.utils.ValidationUtils;
@@ -8,26 +7,26 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 
 import java.util.List;
-import java.util.Objects;
 
-public class RedisLuaTokenBucketLimiter implements RateLimiter {
+public class RedisLuaTokenBucketLimiter extends AbstractRedisLuaRateLimiter {
 
-    private final StringRedisTemplate redisTemplate;
-    private final RedisScript<List<Long>> script;
-
-    public RedisLuaTokenBucketLimiter(StringRedisTemplate redisTemplate,RedisScript<List<Long>> script){
-        this.redisTemplate= Objects.requireNonNull(redisTemplate,"RedisTemplate must be non null");
-        this.script=Objects.requireNonNull(script,"Script must be non null");
+    public RedisLuaTokenBucketLimiter(
+            StringRedisTemplate redisTemplate,
+            RedisScript<List<Long>> script) {
+        super(redisTemplate, script);
     }
 
     @Override
-    public RateLimitResult tryAcquire(String key, RateLimitRule rule){
-        ValidationUtils.validateInputs(key,rule);
-        String redisKey=RedisKeyGenerator.generateBucketKey(key);
-        double refillRatePerMillis=(double) rule.limit()/rule.window().toMillis();
-        List<Long> result=redisTemplate.execute(script,List.of(redisKey),String.valueOf(rule.limit()),String.valueOf(refillRatePerMillis));
-        if(result==null || result.size()!=3) throw new IllegalStateException("Unexpected Lua Response");
-        return new RateLimitResult(result.get(0)==1L,result.get(1),result.get(2));
+    public RateLimitResult tryAcquire(
+            String key,
+            RateLimitRule rule) {
+        ValidationUtils.validateInputs(key, rule);
+        String redisKey = RedisKeyGenerator.generateBucketKey(key);
+        double refillRatePerMillis = (double) rule.limit() / rule.window().toMillis();
+        List<Long> result = executeScript(List.of(redisKey),String.valueOf(rule.limit()), String.valueOf(refillRatePerMillis));
+        return new RateLimitResult(
+                result.get(0) == 1L,
+                result.get(1),
+                result.get(2));
     }
-
 }

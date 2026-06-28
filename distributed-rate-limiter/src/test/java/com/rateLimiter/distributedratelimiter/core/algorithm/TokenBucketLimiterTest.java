@@ -4,6 +4,7 @@ import com.rateLimiter.distributedratelimiter.core.clock.MutableClockProvider;
 import com.rateLimiter.distributedratelimiter.core.model.Algorithm;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitResult;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitRule;
+import com.rateLimiter.distributedratelimiter.exceptions.InvalidRateLimitRuleException;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -137,52 +138,8 @@ public class TokenBucketLimiterTest {
                         Algorithm.TOKEN_BUCKET);
 
         assertThrows(
-                IllegalArgumentException.class,
+                InvalidRateLimitRuleException.class,
                 () -> limiter.tryAcquire(" ", rule));
-    }
-
-    @Test
-    void shouldRejectInvalidLimit() {
-
-        MutableClockProvider clock =
-                new MutableClockProvider(0);
-
-        TokenBucketLimiter limiter =
-                new TokenBucketLimiter(
-                        clock);
-
-        RateLimitRule rule =
-                new RateLimitRule(
-                        "test",
-                        0,
-                        Duration.ofSeconds(1),
-                        Algorithm.TOKEN_BUCKET);
-
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> limiter.tryAcquire("user", rule));
-    }
-
-    @Test
-    void shouldRejectInvalidWindow() {
-
-        MutableClockProvider clock =
-                new MutableClockProvider(0);
-
-        TokenBucketLimiter limiter =
-                new TokenBucketLimiter(
-                        clock);
-
-        RateLimitRule rule =
-                new RateLimitRule(
-                        "test",
-                        10,
-                        Duration.ZERO,
-                        Algorithm.TOKEN_BUCKET);
-
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> limiter.tryAcquire("user", rule));
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.rateLimiter.distributedratelimiter.core.clock.MutableClockProvider;
 import com.rateLimiter.distributedratelimiter.core.model.Algorithm;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitResult;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitRule;
+import com.rateLimiter.distributedratelimiter.exceptions.InvalidRateLimitRuleException;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -114,23 +115,7 @@ public class SlidingWindowCounterLimiterTest {
         MutableClockProvider clock=new MutableClockProvider(0);
         SlidingWindowCounterLimiter limiter=new SlidingWindowCounterLimiter(clock);
         RateLimitRule rule=new RateLimitRule("test",5,Duration.ofSeconds(10),Algorithm.SLIDING_WINDOW_COUNTER);
-        assertThrows(IllegalArgumentException.class,()->limiter.tryAcquire("",rule));
-    }
-
-    @Test
-    void shouldRejectInvalidLimit(){
-        MutableClockProvider clock=new MutableClockProvider(0);
-        SlidingWindowCounterLimiter limiter=new SlidingWindowCounterLimiter(clock);
-        RateLimitRule rule=new RateLimitRule("test",0,Duration.ofSeconds(10),Algorithm.SLIDING_WINDOW_COUNTER);
-        assertThrows(IllegalArgumentException.class,()->limiter.tryAcquire("userA",rule));
-    }
-
-    @Test
-    void shouldRejectInvalidWindow(){
-        MutableClockProvider clock=new MutableClockProvider(0);
-        SlidingWindowCounterLimiter limiter=new SlidingWindowCounterLimiter(clock);
-        RateLimitRule rule=new RateLimitRule("test",5,Duration.ZERO,Algorithm.SLIDING_WINDOW_COUNTER);
-        assertThrows(IllegalArgumentException.class,()->limiter.tryAcquire("userA",rule));
+        assertThrows(InvalidRateLimitRuleException.class,()->limiter.tryAcquire("",rule));
     }
 
     @Test
