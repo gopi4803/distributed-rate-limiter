@@ -5,6 +5,8 @@ import com.rateLimiter.distributedratelimiter.core.algorithm.SlidingWindowCounte
 import com.rateLimiter.distributedratelimiter.core.algorithm.TokenBucketLimiter;
 import com.rateLimiter.distributedratelimiter.core.clock.MutableClockProvider;
 import com.rateLimiter.distributedratelimiter.core.model.Algorithm;
+import com.rateLimiter.distributedratelimiter.exceptions.InvalidRateLimitRuleException;
+import com.rateLimiter.distributedratelimiter.exceptions.UnsupportedAlgorithmException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -47,7 +49,7 @@ public class RateLimiterRegistryTest {
 
     @Test
     void shouldRejectEmptyRegistry() {
-        assertThrows(IllegalArgumentException.class,() -> new RateLimiterRegistry(Map.of()));
+        assertThrows(InvalidRateLimitRuleException.class,() -> new RateLimiterRegistry(Map.of()));
     }
 
     @Test
@@ -87,6 +89,6 @@ public class RateLimiterRegistryTest {
                                 Algorithm.TOKEN_BUCKET,
                                 new TokenBucketLimiter(clock)));
 
-        assertThrows(IllegalArgumentException.class, () -> registry.getLimiter(Algorithm.SLIDING_WINDOW_COUNTER));
+        assertThrows(UnsupportedAlgorithmException.class, () -> registry.getLimiter(Algorithm.SLIDING_WINDOW_COUNTER));
     }
 }

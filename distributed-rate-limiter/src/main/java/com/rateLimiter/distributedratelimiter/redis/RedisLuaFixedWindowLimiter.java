@@ -1,6 +1,5 @@
 package com.rateLimiter.distributedratelimiter.redis;
 
-import com.rateLimiter.distributedratelimiter.core.RateLimiter;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitResult;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitRule;
 import com.rateLimiter.distributedratelimiter.core.utils.ValidationUtils;
@@ -8,30 +7,28 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 
 import java.util.List;
-import java.util.Objects;
 
-public class RedisLuaFixedWindowLimiter implements RateLimiter {
+public class RedisLuaFixedWindowLimiter extends AbstractRedisLuaRateLimiter {
 
-    private final StringRedisTemplate redisTemplate;
-    private final RedisScript<List<Long>> script;
-
-    public RedisLuaFixedWindowLimiter(StringRedisTemplate redisTemplate,RedisScript<List<Long>> script){
-        this.redisTemplate= Objects.requireNonNull(redisTemplate,"Redis Template must be non null");
-        this.script=Objects.requireNonNull(script);
+    public RedisLuaFixedWindowLimiter(
+            StringRedisTemplate redisTemplate,
+            RedisScript<List<Long>> script) {
+        super(redisTemplate, script);
     }
 
     @Override
-    public RateLimitResult tryAcquire(String key,RateLimitRule rule){
-        ValidationUtils.validateInputs(key,rule);
-        String redisKey=RedisKeyGenerator.generateBucketKey(key);
-        List<Long> result=redisTemplate.execute(script,List.of(redisKey),String.valueOf(rule.limit()),String.valueOf(rule.window().toMillis()));
-        if(result==null || result.size()!=3){
-            throw new IllegalStateException("Unexpected Lua script response");
-        }
-        boolean allowed =result.get(0)==1L;
-        long remaining=result.get(1);
-        long retryAfter=result.get(2);
-        return new RateLimitResult(allowed,remaining,retryAfter);
+    public RateLimitResult tryAcquire(
+            String key,
+            RateLimitRule rule) {
+        ValidationUtils.validateInputs(key, rule);
+        String redisKey = RedisKeyGenerator.generateBucketKey(key);
+        List<Long> result = executeScript(
+                        List.of(redisKey),
+                        String.valueOf(rule.limit()),
+                        String.valueOf(rule.window().toMillis()));
+        return new RateLimitResult(
+                result.get(0) == 1L,
+                result.get(1),
+                result.get(2));
     }
-
 }
