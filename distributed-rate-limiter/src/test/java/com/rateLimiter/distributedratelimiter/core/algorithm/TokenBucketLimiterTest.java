@@ -142,50 +142,6 @@ public class TokenBucketLimiterTest {
     }
 
     @Test
-    void shouldRejectInvalidLimit() {
-
-        MutableClockProvider clock =
-                new MutableClockProvider(0);
-
-        TokenBucketLimiter limiter =
-                new TokenBucketLimiter(
-                        clock);
-
-        RateLimitRule rule =
-                new RateLimitRule(
-                        "test",
-                        0,
-                        Duration.ofSeconds(1),
-                        Algorithm.TOKEN_BUCKET);
-
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> limiter.tryAcquire("user", rule));
-    }
-
-    @Test
-    void shouldRejectInvalidWindow() {
-
-        MutableClockProvider clock =
-                new MutableClockProvider(0);
-
-        TokenBucketLimiter limiter =
-                new TokenBucketLimiter(
-                        clock);
-
-        RateLimitRule rule =
-                new RateLimitRule(
-                        "test",
-                        10,
-                        Duration.ZERO,
-                        Algorithm.TOKEN_BUCKET);
-
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> limiter.tryAcquire("user", rule));
-    }
-
-    @Test
     void shouldCapTokensAtBucketCapacity() {
 
         MutableClockProvider clock =

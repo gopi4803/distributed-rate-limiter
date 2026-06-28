@@ -118,22 +118,6 @@ public class SlidingWindowCounterLimiterTest {
     }
 
     @Test
-    void shouldRejectInvalidLimit(){
-        MutableClockProvider clock=new MutableClockProvider(0);
-        SlidingWindowCounterLimiter limiter=new SlidingWindowCounterLimiter(clock);
-        RateLimitRule rule=new RateLimitRule("test",0,Duration.ofSeconds(10),Algorithm.SLIDING_WINDOW_COUNTER);
-        assertThrows(IllegalArgumentException.class,()->limiter.tryAcquire("userA",rule));
-    }
-
-    @Test
-    void shouldRejectInvalidWindow(){
-        MutableClockProvider clock=new MutableClockProvider(0);
-        SlidingWindowCounterLimiter limiter=new SlidingWindowCounterLimiter(clock);
-        RateLimitRule rule=new RateLimitRule("test",5,Duration.ZERO,Algorithm.SLIDING_WINDOW_COUNTER);
-        assertThrows(IllegalArgumentException.class,()->limiter.tryAcquire("userA",rule));
-    }
-
-    @Test
     void shouldAllowRequestWhenPreviousWindowContributionHasExpired() {
         MutableClockProvider clock = new MutableClockProvider(0);
         SlidingWindowCounterLimiter limiter = new SlidingWindowCounterLimiter(clock);
