@@ -2,6 +2,7 @@ package com.rateLimiter.distributedratelimiter.core.utils;
 
 import com.rateLimiter.distributedratelimiter.core.model.Algorithm;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitRule;
+import com.rateLimiter.distributedratelimiter.exceptions.InvalidRateLimitRuleException;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -66,8 +67,8 @@ class ValidationUtilsTest {
     @Test
     void shouldThrowExceptionWhenKeyIsBlank() {
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        InvalidRateLimitRuleException exception = assertThrows(
+                InvalidRateLimitRuleException.class,
                 () -> ValidationUtils.validateInputs(
                         " ",
                         validRule
@@ -83,8 +84,8 @@ class ValidationUtilsTest {
     @Test
     void shouldThrowExceptionWhenKeyIsEmpty() {
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        InvalidRateLimitRuleException exception = assertThrows(
+                InvalidRateLimitRuleException.class,
                 () -> ValidationUtils.validateInputs(
                         "",
                         validRule

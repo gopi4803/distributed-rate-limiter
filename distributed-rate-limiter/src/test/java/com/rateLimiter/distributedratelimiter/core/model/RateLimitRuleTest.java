@@ -1,5 +1,6 @@
 package com.rateLimiter.distributedratelimiter.core.model;
 
+import com.rateLimiter.distributedratelimiter.exceptions.InvalidRateLimitRuleException;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -84,8 +85,8 @@ class RateLimitRuleTest {
     @Test
     void shouldThrowExceptionWhenNameIsBlank() {
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        InvalidRateLimitRuleException exception = assertThrows(
+                InvalidRateLimitRuleException.class,
                 () -> new RateLimitRule(
                         " ",
                         100,
@@ -103,8 +104,8 @@ class RateLimitRuleTest {
     @Test
     void shouldThrowExceptionWhenLimitIsZero() {
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        InvalidRateLimitRuleException exception = assertThrows(
+                InvalidRateLimitRuleException.class,
                 () -> new RateLimitRule(
                         "premium",
                         0,
@@ -122,8 +123,8 @@ class RateLimitRuleTest {
     @Test
     void shouldThrowExceptionWhenLimitIsNegative() {
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        InvalidRateLimitRuleException exception = assertThrows(
+                InvalidRateLimitRuleException.class,
                 () -> new RateLimitRule(
                         "premium",
                         -1,
@@ -141,8 +142,8 @@ class RateLimitRuleTest {
     @Test
     void shouldThrowExceptionWhenWindowIsZero() {
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        InvalidRateLimitRuleException exception = assertThrows(
+                InvalidRateLimitRuleException.class,
                 () -> new RateLimitRule(
                         "premium",
                         100,
@@ -160,8 +161,8 @@ class RateLimitRuleTest {
     @Test
     void shouldThrowExceptionWhenWindowIsNegative() {
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        InvalidRateLimitRuleException exception = assertThrows(
+                InvalidRateLimitRuleException.class,
                 () -> new RateLimitRule(
                         "premium",
                         100,

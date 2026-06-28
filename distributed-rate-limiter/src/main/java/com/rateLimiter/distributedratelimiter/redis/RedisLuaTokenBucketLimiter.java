@@ -4,6 +4,7 @@ import com.rateLimiter.distributedratelimiter.core.RateLimiter;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitResult;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitRule;
 import com.rateLimiter.distributedratelimiter.core.utils.ValidationUtils;
+import com.rateLimiter.distributedratelimiter.exceptions.InvalidLuaScriptException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 
@@ -26,7 +27,7 @@ public class RedisLuaTokenBucketLimiter implements RateLimiter {
         String redisKey=RedisKeyGenerator.generateBucketKey(key);
         double refillRatePerMillis=(double) rule.limit()/rule.window().toMillis();
         List<Long> result=redisTemplate.execute(script,List.of(redisKey),String.valueOf(rule.limit()),String.valueOf(refillRatePerMillis));
-        if(result==null || result.size()!=3) throw new IllegalStateException("Unexpected Lua Response");
+        if(result==null || result.size()!=3) throw new InvalidLuaScriptException("Unexpected Lua Response");
         return new RateLimitResult(result.get(0)==1L,result.get(1),result.get(2));
     }
 

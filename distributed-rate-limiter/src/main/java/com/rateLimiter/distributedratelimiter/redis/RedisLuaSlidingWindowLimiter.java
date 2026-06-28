@@ -4,6 +4,7 @@ import com.rateLimiter.distributedratelimiter.core.RateLimiter;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitResult;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitRule;
 import com.rateLimiter.distributedratelimiter.core.utils.ValidationUtils;
+import com.rateLimiter.distributedratelimiter.exceptions.InvalidLuaScriptException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 
@@ -36,7 +37,7 @@ public class RedisLuaSlidingWindowLimiter implements RateLimiter {
                                 rule.window().toMillis()));
 
         if (result == null || result.size() != 3) {
-            throw new IllegalStateException("Unexpected Lua response");
+            throw new InvalidLuaScriptException("Unexpected Lua response");
         }
 
         return new RateLimitResult(result.get(0) == 1L, result.get(1), result.get(2));

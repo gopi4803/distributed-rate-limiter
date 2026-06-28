@@ -4,6 +4,7 @@ import com.rateLimiter.distributedratelimiter.core.clock.MutableClockProvider;
 import com.rateLimiter.distributedratelimiter.core.model.Algorithm;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitResult;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitRule;
+import com.rateLimiter.distributedratelimiter.exceptions.InvalidRateLimitRuleException;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -137,7 +138,7 @@ public class TokenBucketLimiterTest {
                         Algorithm.TOKEN_BUCKET);
 
         assertThrows(
-                IllegalArgumentException.class,
+                InvalidRateLimitRuleException.class,
                 () -> limiter.tryAcquire(" ", rule));
     }
 
