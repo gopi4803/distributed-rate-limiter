@@ -4,6 +4,7 @@ import com.rateLimiter.distributedratelimiter.core.RateLimiter;
 import com.rateLimiter.distributedratelimiter.core.clock.ClockProvider;
 import com.rateLimiter.distributedratelimiter.core.model.Algorithm;
 import com.rateLimiter.distributedratelimiter.core.registry.RateLimiterRegistry;
+import com.rateLimiter.distributedratelimiter.metrics.RateLimiterMetrics;
 import com.rateLimiter.distributedratelimiter.redis.RedisLuaFixedWindowLimiter;
 import com.rateLimiter.distributedratelimiter.redis.RedisLuaSlidingWindowLimiter;
 import com.rateLimiter.distributedratelimiter.redis.RedisLuaTokenBucketLimiter;
@@ -30,7 +31,7 @@ public class RateLimiterRegistryConfiguration {
             RedisScript<List<Long>> tokenBucketLuaScript,
             RedisScript<List<Long>> slidingWindowLuaScript,
             RedisScript<List<Long>> fixedWindowLuaScript,
-            ClockProvider clockProvider) {
+            ClockProvider clockProvider, RateLimiterMetrics metrics) {
 
         Map<Algorithm, RateLimiter> limiters = new EnumMap<>(Algorithm.class);
 
@@ -39,28 +40,28 @@ public class RateLimiterRegistryConfiguration {
                         new RedisLuaTokenBucketLimiter(
                                 redisTemplate,
                                 tokenBucketLuaScript),
-                        clockProvider));
+                        clockProvider,metrics,Algorithm.TOKEN_BUCKET));
 
         limiters.put(Algorithm.SLIDING_WINDOW_COUNTER,
                 buildResilientLimiter(
                         new RedisLuaSlidingWindowLimiter(
                                 redisTemplate,
                                 slidingWindowLuaScript),
-                        clockProvider));
+                        clockProvider,metrics,Algorithm.SLIDING_WINDOW_COUNTER));
 
         limiters.put(Algorithm.FIXED_WINDOW,
                 buildResilientLimiter(
                         new RedisLuaFixedWindowLimiter(
                                 redisTemplate,
                                 fixedWindowLuaScript),
-                        clockProvider));
+                        clockProvider,metrics,Algorithm.FIXED_WINDOW));
 
         return new RateLimiterRegistry(limiters);
     }
 
     private RateLimiter buildResilientLimiter(
             RateLimiter delegate,
-            ClockProvider clockProvider) {
+            ClockProvider clockProvider,RateLimiterMetrics metrics,Algorithm algorithm) {
 
         RateLimiter protectedLimiter =
                 new CircuitBreakerRateLimiter(
@@ -68,10 +69,10 @@ public class RateLimiterRegistryConfiguration {
                         new CircuitBreakerConfig(
                                 5,
                                 Duration.ofSeconds(30)),
-                        clockProvider);
+                        clockProvider,metrics,algorithm);
 
         return new ResilientRateLimiter(
                 protectedLimiter,
-                FailureStrategy.FAIL_OPEN);
+                FailureStrategy.FAIL_OPEN,metrics,algorithm);
     }
 }

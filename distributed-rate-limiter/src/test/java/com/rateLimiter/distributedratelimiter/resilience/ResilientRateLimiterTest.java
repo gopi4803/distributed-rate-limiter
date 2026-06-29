@@ -6,14 +6,16 @@ import com.rateLimiter.distributedratelimiter.core.model.RateLimitResult;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitRule;
 import com.rateLimiter.distributedratelimiter.exceptions.CircuitBreakerOpenException;
 import com.rateLimiter.distributedratelimiter.exceptions.RedisExecutionException;
+import com.rateLimiter.distributedratelimiter.metrics.NoOpRateLimiterMetrics;
+import com.rateLimiter.distributedratelimiter.metrics.RateLimiterMetrics;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.*;
 
 class ResilientRateLimiterTest {
 
@@ -78,7 +80,7 @@ class ResilientRateLimiterTest {
         ResilientRateLimiter resilient =
                 new ResilientRateLimiter(
                         delegate,
-                        FailureStrategy.FAIL_OPEN);
+                        FailureStrategy.FAIL_OPEN,new NoOpRateLimiterMetrics(),Algorithm.TOKEN_BUCKET);
 
         RateLimitResult result =
                 resilient.tryAcquire(
@@ -96,7 +98,7 @@ class ResilientRateLimiterTest {
         ResilientRateLimiter resilient =
                 new ResilientRateLimiter(
                         new RedisFailingLimiter(),
-                        FailureStrategy.FAIL_OPEN);
+                        FailureStrategy.FAIL_OPEN,new NoOpRateLimiterMetrics(),Algorithm.TOKEN_BUCKET);
 
         RateLimitResult result =
                 resilient.tryAcquire(
@@ -114,7 +116,7 @@ class ResilientRateLimiterTest {
         ResilientRateLimiter resilient =
                 new ResilientRateLimiter(
                         new RedisFailingLimiter(),
-                        FailureStrategy.FAIL_CLOSED);
+                        FailureStrategy.FAIL_CLOSED,new NoOpRateLimiterMetrics(),Algorithm.TOKEN_BUCKET);
 
         RateLimitResult result =
                 resilient.tryAcquire(
@@ -134,7 +136,7 @@ class ResilientRateLimiterTest {
         ResilientRateLimiter resilient =
                 new ResilientRateLimiter(
                         new CircuitOpenLimiter(),
-                        FailureStrategy.FAIL_OPEN);
+                        FailureStrategy.FAIL_OPEN,new NoOpRateLimiterMetrics(),Algorithm.TOKEN_BUCKET);
 
         RateLimitResult result =
                 resilient.tryAcquire(
@@ -151,7 +153,7 @@ class ResilientRateLimiterTest {
         ResilientRateLimiter resilient =
                 new ResilientRateLimiter(
                         new CircuitOpenLimiter(),
-                        FailureStrategy.FAIL_CLOSED);
+                        FailureStrategy.FAIL_CLOSED,new NoOpRateLimiterMetrics(),Algorithm.TOKEN_BUCKET);
 
         RateLimitResult result =
                 resilient.tryAcquire(
@@ -168,7 +170,7 @@ class ResilientRateLimiterTest {
                 NullPointerException.class,
                 () -> new ResilientRateLimiter(
                         null,
-                        FailureStrategy.FAIL_OPEN));
+                        FailureStrategy.FAIL_OPEN,new NoOpRateLimiterMetrics(),Algorithm.TOKEN_BUCKET));
     }
 
     @Test
@@ -180,7 +182,7 @@ class ResilientRateLimiterTest {
                 NullPointerException.class,
                 () -> new ResilientRateLimiter(
                         delegate,
-                        null));
+                        null,new NoOpRateLimiterMetrics(),Algorithm.TOKEN_BUCKET));
     }
 
     @Test
@@ -189,12 +191,51 @@ class ResilientRateLimiterTest {
         ResilientRateLimiter resilient =
                 new ResilientRateLimiter(
                         new InvalidInputLimiter(),
-                        FailureStrategy.FAIL_OPEN);
+                        FailureStrategy.FAIL_OPEN,new NoOpRateLimiterMetrics(),Algorithm.TOKEN_BUCKET);
 
         assertThrows(
                 IllegalArgumentException.class,
                 () -> resilient.tryAcquire(
                         "user",
                         RULE));
+    }
+
+    @Test
+    void shouldRecordRequestDuration() {
+
+        RateLimiter delegate =
+                mock(RateLimiter.class);
+
+        RateLimiterMetrics metrics =
+                mock(RateLimiterMetrics.class);
+
+        ResilientRateLimiter limiter =
+                new ResilientRateLimiter(
+                        delegate,
+                        FailureStrategy.FAIL_OPEN,
+                        metrics,
+                        Algorithm.TOKEN_BUCKET);
+
+        RateLimitRule rule =
+                new RateLimitRule(
+                        "test-rule",
+                        10,
+                        Duration.ofSeconds(10),
+                        Algorithm.TOKEN_BUCKET);
+
+        when(delegate.tryAcquire(
+                "user-1",
+                rule))
+                .thenReturn(
+                        new RateLimitResult(
+                                true,
+                                9,
+                                0));
+
+        limiter.tryAcquire("user-1", rule);
+
+        verify(metrics).recordRequestDuration(
+                eq(Algorithm.TOKEN_BUCKET),
+                anyLong());
     }
 }

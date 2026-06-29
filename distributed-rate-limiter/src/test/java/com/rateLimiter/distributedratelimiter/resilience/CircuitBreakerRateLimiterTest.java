@@ -1,11 +1,16 @@
 package com.rateLimiter.distributedratelimiter.resilience;
 
 import com.rateLimiter.distributedratelimiter.core.RateLimiter;
+import com.rateLimiter.distributedratelimiter.core.clock.ClockProvider;
 import com.rateLimiter.distributedratelimiter.core.clock.MutableClockProvider;
 import com.rateLimiter.distributedratelimiter.core.model.Algorithm;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitResult;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitRule;
 import com.rateLimiter.distributedratelimiter.exceptions.CircuitBreakerOpenException;
+import com.rateLimiter.distributedratelimiter.exceptions.RedisExecutionException;
+import com.rateLimiter.distributedratelimiter.metrics.NoOpRateLimiterMetrics;
+import com.rateLimiter.distributedratelimiter.metrics.RateLimiterMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -45,7 +50,7 @@ class CircuitBreakerRateLimiterTest {
                 new CircuitBreakerRateLimiter(
                         delegate,
                         config,
-                        clock);
+                        clock,new NoOpRateLimiterMetrics(),Algorithm.TOKEN_BUCKET);
 
         RateLimitResult result =
                 circuitBreaker.tryAcquire("user", rule);
@@ -75,7 +80,7 @@ class CircuitBreakerRateLimiterTest {
                 new CircuitBreakerRateLimiter(
                         delegate,
                         config,
-                        clock);
+                        clock,new NoOpRateLimiterMetrics(),Algorithm.TOKEN_BUCKET);
 
         for (int i = 0; i < 3; i++) {
 
@@ -104,7 +109,7 @@ class CircuitBreakerRateLimiterTest {
                 new CircuitBreakerRateLimiter(
                         delegate,
                         config,
-                        clock);
+                        clock,new NoOpRateLimiterMetrics(),Algorithm.TOKEN_BUCKET);
 
         for (int i = 0; i < 3; i++) {
 
@@ -137,7 +142,7 @@ class CircuitBreakerRateLimiterTest {
                 new CircuitBreakerRateLimiter(
                         delegate,
                         config,
-                        clock);
+                        clock,new NoOpRateLimiterMetrics(),Algorithm.TOKEN_BUCKET);
 
         for (int i = 0; i < 3; i++) {
 
@@ -184,7 +189,7 @@ class CircuitBreakerRateLimiterTest {
                 new CircuitBreakerRateLimiter(
                         delegate,
                         config,
-                        clock);
+                        clock,new NoOpRateLimiterMetrics(),Algorithm.TOKEN_BUCKET);
 
         RateLimitResult result =
                 circuitBreaker.tryAcquire("user", rule);
@@ -211,7 +216,7 @@ class CircuitBreakerRateLimiterTest {
                 new CircuitBreakerRateLimiter(
                         delegate,
                         config,
-                        clock);
+                        clock,new NoOpRateLimiterMetrics(),Algorithm.SLIDING_WINDOW_COUNTER);
 
         for (int i = 0; i < 3; i++) {
 
@@ -250,7 +255,7 @@ class CircuitBreakerRateLimiterTest {
                 new CircuitBreakerRateLimiter(
                         delegate,
                         config,
-                        clock);
+                        clock,new NoOpRateLimiterMetrics(),Algorithm.SLIDING_WINDOW_COUNTER);
 
         assertThrows(
                 RuntimeException.class,
@@ -282,7 +287,7 @@ class CircuitBreakerRateLimiterTest {
                 new CircuitBreakerRateLimiter(
                         delegate,
                         config,
-                        clock);
+                        clock,new NoOpRateLimiterMetrics(),Algorithm.SLIDING_WINDOW_COUNTER);
 
         // Reach failure threshold
         for (int i = 0; i < 3; i++) {
@@ -414,7 +419,7 @@ class CircuitBreakerRateLimiterTest {
                 () -> new CircuitBreakerRateLimiter(
                         null,
                         config,
-                        clock));
+                        clock,new NoOpRateLimiterMetrics(),Algorithm.TOKEN_BUCKET));
     }
 
     @Test
@@ -430,7 +435,7 @@ class CircuitBreakerRateLimiterTest {
                 () -> new CircuitBreakerRateLimiter(
                         delegate,
                         null,
-                        clock));
+                        clock,new NoOpRateLimiterMetrics(),Algorithm.SLIDING_WINDOW_COUNTER));
     }
 
     @Test
@@ -443,7 +448,7 @@ class CircuitBreakerRateLimiterTest {
                 () -> new CircuitBreakerRateLimiter(
                         delegate,
                         config,
-                        null));
+                        null,new NoOpRateLimiterMetrics(),Algorithm.SLIDING_WINDOW_COUNTER));
     }
 
     @Test
@@ -466,7 +471,7 @@ class CircuitBreakerRateLimiterTest {
                 new CircuitBreakerRateLimiter(
                         delegate,
                         config,
-                        clock);
+                        clock,new NoOpRateLimiterMetrics(),Algorithm.TOKEN_BUCKET);
 
         assertThrows(
                 RuntimeException.class,
@@ -507,7 +512,7 @@ class CircuitBreakerRateLimiterTest {
                 new CircuitBreakerRateLimiter(
                         delegate,
                         config,
-                        clock);
+                        clock,new NoOpRateLimiterMetrics(),Algorithm.TOKEN_BUCKET);
 
         for (int i = 0; i < 3; i++) {
 
@@ -525,5 +530,47 @@ class CircuitBreakerRateLimiterTest {
 
         verify(delegate, times(3))
                 .tryAcquire(any(), any());
+    }
+    @Test
+    void shouldRecordMetricWhenCircuitTransitionsToOpen() {
+
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
+        RateLimiterMetrics metrics =
+                new RateLimiterMetrics(meterRegistry);
+
+        RateLimiter delegate = mock(RateLimiter.class);
+
+        ClockProvider clockProvider = mock(ClockProvider.class);
+
+        CircuitBreakerConfig config =
+                new CircuitBreakerConfig(
+                        1, // Open circuit after first failure
+                        Duration.ofSeconds(30));
+
+        CircuitBreakerRateLimiter circuitBreaker =
+                new CircuitBreakerRateLimiter(
+                        delegate,
+                        config,
+                        clockProvider,
+                        metrics,
+                        Algorithm.TOKEN_BUCKET);
+
+        RateLimitRule rule = mock(RateLimitRule.class);
+
+        when(delegate.tryAcquire(anyString(), any(RateLimitRule.class)))
+                .thenThrow(new RedisExecutionException("Redis unavailable",null));
+
+        assertThrows(
+                RedisExecutionException.class,
+                () -> circuitBreaker.tryAcquire("user-1", rule));
+
+        double count = meterRegistry.get(
+                        "ratelimiter.circuitbreaker.open.transitions")
+                .tag("algorithm", "TOKEN_BUCKET")
+                .counter()
+                .count();
+
+        assertEquals(1.0, count);
     }
 }
