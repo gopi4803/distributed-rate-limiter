@@ -1,25 +1,32 @@
 package com.rateLimiter.distributedratelimiter.metrics;
 
-public class NoOpRateLimiterMetrics implements RateLimiterMetrics {
+import com.rateLimiter.distributedratelimiter.core.model.Algorithm;
 
-    @Override
-    public void recordAllowedRequests(){
+public class NoOpRateLimiterMetrics extends RateLimiterMetrics {
 
+    public NoOpRateLimiterMetrics() {
+        super(new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
     }
 
     @Override
-    public void recordBlockedRequests(){
-
+    public void recordAllowed(Algorithm algorithm) {
     }
 
     @Override
-    public void recordRedisFailures(){
-
+    public void recordBlocked(Algorithm algorithm) {
     }
 
     @Override
-    public void recordCircuitBreakerOpen(){
-
+    public void recordRedisFailure(Algorithm algorithm) {
     }
 
+    @Override
+    public void recordCircuitBreakerOpened(Algorithm algorithm) {
+    }
+
+    @Override
+    public void recordRequestDuration(
+            Algorithm algorithm,
+            long durationNanos) {
+    }
 }

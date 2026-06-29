@@ -2,9 +2,11 @@ package com.rateLimiter.distributedratelimiter.resilience;
 
 import com.rateLimiter.distributedratelimiter.core.RateLimiter;
 import com.rateLimiter.distributedratelimiter.core.clock.ClockProvider;
+import com.rateLimiter.distributedratelimiter.core.model.Algorithm;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitResult;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitRule;
 import com.rateLimiter.distributedratelimiter.exceptions.CircuitBreakerOpenException;
+import com.rateLimiter.distributedratelimiter.metrics.RateLimiterMetrics;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -17,6 +19,8 @@ public class CircuitBreakerRateLimiter implements RateLimiter {
     private final RateLimiter delegate;
     private final CircuitBreakerConfig config;
     private final ClockProvider clockProvider;
+    private final RateLimiterMetrics metrics;
+    private final Algorithm algorithm;
 
     private final AtomicReference<CircuitBreakerState> state =
             new AtomicReference<>(CircuitBreakerState.CLOSED);
@@ -34,7 +38,9 @@ public class CircuitBreakerRateLimiter implements RateLimiter {
     public CircuitBreakerRateLimiter(
             RateLimiter delegate,
             CircuitBreakerConfig config,
-            ClockProvider clockProvider) {
+            ClockProvider clockProvider,
+            RateLimiterMetrics metrics,
+            Algorithm algorithm) {
 
         this.delegate = Objects.requireNonNull(
                 delegate,
@@ -47,6 +53,8 @@ public class CircuitBreakerRateLimiter implements RateLimiter {
         this.clockProvider = Objects.requireNonNull(
                 clockProvider,
                 "Clock provider must not be null");
+        this.metrics=Objects.requireNonNull(metrics,"Metrics must be non null");
+        this.algorithm=Objects.requireNonNull(algorithm,"Algorithm must be non null");
     }
 
     RateLimiter getDelegate() {
@@ -75,6 +83,8 @@ public class CircuitBreakerRateLimiter implements RateLimiter {
 
                 case HALF_OPEN:
                     if (probeInProgress.compareAndSet(false, true)) {
+                        System.out.println(
+                                "HALF_OPEN: allowing single probe request");
                         return;
                     }
                     throw new CircuitBreakerOpenException();
@@ -118,6 +128,8 @@ public class CircuitBreakerRateLimiter implements RateLimiter {
 
     private boolean shouldTransitionToHalfOpen() {
 
+        System.out.println(
+                "Circuit state transition: OPEN -> HALF_OPEN");
         long elapsedMillis = clockProvider.currentTimeMillis() - openTimestamp;
         return elapsedMillis >= config.waitDurationInOpenState()
                                         .toMillis();
@@ -125,9 +137,10 @@ public class CircuitBreakerRateLimiter implements RateLimiter {
     }
 
     private void onSuccess() {
-
         consecutiveFailures.set(0);
         if (state.get() == CircuitBreakerState.HALF_OPEN) {
+            System.out.println(
+                    "Circuit state transition: HALF_OPEN -> CLOSED");
             state.set(CircuitBreakerState.CLOSED);
             probeInProgress.set(false);
         }
@@ -147,6 +160,13 @@ public class CircuitBreakerRateLimiter implements RateLimiter {
     }
 
     private void reopenCircuit() {
+        CircuitBreakerState previousState=state.getAndSet(CircuitBreakerState.OPEN);
+        if(previousState!=CircuitBreakerState.OPEN){
+            System.out.println(
+                    "Circuit state transition: "
+                            + previousState + " -> OPEN");
+            metrics.recordCircuitBreakerOpened(algorithm);
+        }
         state.set(CircuitBreakerState.OPEN);
         openTimestamp = clockProvider.currentTimeMillis();
         probeInProgress.set(false);

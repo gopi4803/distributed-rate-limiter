@@ -55,15 +55,28 @@ public class TokenBucketLimiter implements RateLimiter {
                 long elapsedNanos=now-bucket.lastRefillNanos();
                 double refilledTokens=elapsedNanos*refillRatePerNano;
                 availableTokens=Math.min(rule.limit(), bucket.availableTokens()+refilledTokens);
+                System.out.println(
+                        "elapsedNanos=" + elapsedNanos
+                                + ", refilled=" + refilledTokens
+                                + ", availableAfterRefill=" + availableTokens);
             }
+            System.out.println(
+                    "KEY=" + key +
+                            ", NOW=" + now +
+                            ", AVAILABLE_BEFORE=" + availableTokens +
+                            ", LIMIT=" + rule.limit());
             if (availableTokens >= TOKEN_COST){
                 double remainingTokens = availableTokens - TOKEN_COST;
+                System.out.println(
+                        "ALLOWED -> remaining=" + remainingTokens);
                 buckets.put(key,new Bucket(remainingTokens,now));
                 return new RateLimitResult(true,(long) remainingTokens,0);
             }
             long nanosUntilNextToken=(long)((TOKEN_COST-availableTokens)/refillRatePerNano);
             buckets.put(key,new Bucket(availableTokens,now));
             long retryAfterMillis=nanosUntilNextToken/1_000_000L;
+            System.out.println(
+                    "BLOCKED -> retryAfterMillis=" + retryAfterMillis);
             return new RateLimitResult(false,0,Math.max(retryAfterMillis,1));
         }finally {
             lock.unlock();
