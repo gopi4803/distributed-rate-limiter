@@ -1,31 +1,54 @@
 package com.rateLimiter.distributedratelimiter.metrics;
 
+import com.rateLimiter.distributedratelimiter.core.model.Algorithm;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
-public class NoOpRateLimiterMetricsTest {
+class NoOpRateLimiterMetricsTest {
+
     @Test
-    void shouldNotThrowWhenIncrementingAllowedRequests(){
-        RateLimiterMetrics metrics=new NoOpRateLimiterMetrics();
-        assertDoesNotThrow(metrics::recordAllowedRequests);
+    void shouldNotThrowWhenRecordingAllowedRequests() {
+        RateLimiterMetrics metrics = new NoOpRateLimiterMetrics();
+
+        assertDoesNotThrow(() ->
+                metrics.recordAllowed(Algorithm.TOKEN_BUCKET));
     }
 
     @Test
-    void shouldNotThrowWhenIncrementingBlockedRequests() {
+    void shouldNotThrowWhenRecordingBlockedRequests() {
         RateLimiterMetrics metrics = new NoOpRateLimiterMetrics();
-        assertDoesNotThrow(metrics::recordBlockedRequests);
+
+        assertDoesNotThrow(() ->
+                metrics.recordBlocked(Algorithm.TOKEN_BUCKET));
     }
 
     @Test
-    void shouldNotThrowWhenIncrementingRedisFailures() {
+    void shouldNotThrowWhenRecordingRedisFailures() {
         RateLimiterMetrics metrics = new NoOpRateLimiterMetrics();
-        assertDoesNotThrow(metrics::recordRedisFailures);
+
+        assertDoesNotThrow(() ->
+                metrics.recordRedisFailure(Algorithm.TOKEN_BUCKET));
     }
 
     @Test
-    void shouldNotThrowWhenIncrementingCircuitBreakerOpen() {
+    void shouldNotThrowWhenRecordingCircuitBreakerOpenTransitions() {
         RateLimiterMetrics metrics = new NoOpRateLimiterMetrics();
-        assertDoesNotThrow(metrics::recordCircuitBreakerOpen);
+
+        assertDoesNotThrow(() ->
+                metrics.recordCircuitBreakerOpened(
+                        Algorithm.TOKEN_BUCKET));
+    }
+
+    @Test
+    void shouldNotThrowWhenRecordingRequestDuration() {
+
+        RateLimiterMetrics metrics =
+                new NoOpRateLimiterMetrics();
+
+        assertDoesNotThrow(() ->
+                metrics.recordRequestDuration(
+                        Algorithm.TOKEN_BUCKET,
+                        1_000_000));
     }
 }
