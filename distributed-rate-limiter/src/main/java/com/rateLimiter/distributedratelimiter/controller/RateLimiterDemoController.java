@@ -5,6 +5,7 @@ import com.rateLimiter.distributedratelimiter.core.model.Algorithm;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitResult;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitRule;
 import com.rateLimiter.distributedratelimiter.core.registry.RateLimiterRegistry;
+import com.rateLimiter.distributedratelimiter.policy.RateLimitRuleProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,11 +19,12 @@ import java.time.Duration;
 public class RateLimiterDemoController {
 
     private final RateLimiterRegistry registry;
+    private final RateLimitRuleProvider ruleProvider;
 
-    @GetMapping("/{algorithm}")
-    public ResponseEntity<String> testRateLimiter(@PathVariable Algorithm algorithm, @RequestParam(defaultValue = "demo-user") String key){
-        RateLimiter limiter=registry.getLimiter(algorithm);
-        RateLimitRule rule=new RateLimitRule("demo-rule",5, Duration.ofSeconds(10),algorithm);
+    @GetMapping("/{ruleName}")
+    public ResponseEntity<String> testRateLimiter(@PathVariable String ruleName, @RequestParam(defaultValue = "demo-user") String key){
+        RateLimitRule rule=ruleProvider.getRule(ruleName);
+        RateLimiter limiter=registry.getLimiter(rule.algorithm());
         RateLimitResult result=limiter.tryAcquire(key,rule);
         if(!result.allowed()){
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
