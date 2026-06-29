@@ -12,16 +12,16 @@ public class RateLimiterRegistry {
 
     private final Map<Algorithm, RateLimiter> limiters;
 
-    public RateLimiterRegistry(Map<Algorithm,RateLimiter> limiters){
-        Objects.requireNonNull(limiters,"Limiters must not be null");
-        if(limiters.isEmpty()) throw new InvalidRateLimitRuleException("At least one limiter must be registered");
-        this.limiters=Map.copyOf(limiters);
+    public RateLimiterRegistry(Map<Algorithm, RateLimiter> limiters) {
+        Objects.requireNonNull(limiters, "Limiters must not be null");
+        if (limiters.isEmpty()) throw new InvalidRateLimitRuleException("At least one limiter must be registered");
+        this.limiters = Map.copyOf(limiters);
     }
 
-    public RateLimiter getLimiter(Algorithm algorithm){
-        Objects.requireNonNull(algorithm,"Algorithm must be non null");
-        RateLimiter limiter=limiters.get(algorithm);
-        if(limiter==null){
+    public RateLimiter getLimiter(Algorithm algorithm) {
+        Objects.requireNonNull(algorithm, "Algorithm must be non null");
+        RateLimiter limiter = limiters.get(algorithm);
+        if (limiter == null) {
             throw new UnsupportedAlgorithmException(algorithm);
         }
         return limiter;
