@@ -12,6 +12,7 @@ import com.rateLimiter.distributedratelimiter.resilience.CircuitBreakerConfig;
 import com.rateLimiter.distributedratelimiter.resilience.CircuitBreakerRateLimiter;
 import com.rateLimiter.distributedratelimiter.resilience.FailureStrategy;
 import com.rateLimiter.distributedratelimiter.resilience.ResilientRateLimiter;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 @Configuration
+@EnableConfigurationProperties(RateLimiterProperties.class)
 public class RateLimiterRegistryConfiguration {
 
     @Bean
