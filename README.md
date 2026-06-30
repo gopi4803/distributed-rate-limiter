@@ -1,8 +1,8 @@
 # Distributed Rate Limiter
 
-A production-oriented distributed rate limiter built from scratch using **Java**, **Spring Boot**, **Redis**, and **Lua scripting**.
+A production-oriented distributed rate limiter built from scratch using **Java**, **Spring Boot**, **Redis**, **Lua scripting**, and **Docker**.
 
-The project explores how modern backend systems implement scalable, resilient, and fault-tolerant request throttling while maintaining correctness under concurrent load.
+The project explores how modern backend systems implement scalable, resilient, and distributed request throttling while maintaining correctness under concurrent load.
 
 ---
 
@@ -37,8 +37,10 @@ This project demonstrates how these challenges can be solved using production-in
 - Immutable domain model using Java Records
 - Registry-based runtime algorithm selection
 - Deterministic testing using clock abstraction
-- Comprehensive validation and exception handling
+- Dynamic rule configuration
 - Extensible architecture for future algorithms
+
+---
 
 ## Supported Algorithms
 
@@ -46,116 +48,116 @@ This project demonstrates how these challenges can be solved using production-in
 - Sliding Window Counter
 - Fixed Window
 
+---
+
 ## Distributed Features
 
 - Redis-backed distributed state management
 - Redis Lua scripting for atomic execution
-- Redis server time used as the single source of truth
-- Elimination of race conditions through server-side scripting
+- Redis server time as the single source of truth
+- Multi-instance distributed deployment
+- Global quota enforcement across application instances
+- Elimination of race conditions through server-side Lua scripting
+
+---
 
 ## Resilience Features
 
-- Fail-Open strategy
-- Fail-Closed strategy
+- Fail Open strategy
+- Fail Closed strategy
 - Circuit Breaker support
 - Graceful degradation during Redis failures
+
+---
 
 ## HTTP Integration Features
 
 - Global request interception using `OncePerRequestFilter`
-- Endpoint-specific rate limiting
-- Multiple simultaneous rate limit policies
-- Pluggable key extraction layer
+- Multiple simultaneous rate limiting policies
+- Pluggable key extraction
 - HTTP 429 responses
-- Retry-After header support
-- Standard rate limit response headers
+- Retry-After support
+- Standard Rate Limit headers
+
+---
 
 ## Observability Features
 
-- Micrometer metrics integration
-- Spring Boot Actuator support
-- Prometheus-compatible metrics
+- Micrometer metrics
+- Spring Boot Actuator
+- Prometheus metrics
 - Per-algorithm metrics tagging
-- Request duration tracking
+- Request duration metrics
 
-## Engineering Features
+---
 
-- Thread-safe implementations
-- Extensive unit and integration tests
-- Deterministic concurrency testing
-- Redis integration testing using Testcontainers
-- Production-inspired package organization
+## Infrastructure Features
+
+- Dockerized Spring Boot application
+- Multi-stage Docker build
+- Docker Compose deployment
+- Three-node distributed cluster
+- Shared Redis deployment
 
 ---
 
 # High-Level Architecture
 
 ```text
-                           Client Request
-                                   |
-                                   v
-                   +--------------------------------+
-                   | RateLimitFilter               |
-                   | (OncePerRequestFilter)        |
-                   +--------------------------------+
-                                   |
-                                   v
-                   +--------------------------------+
-                   | Key Extractors                |
-                   | - IP                          |
-                   | - User ID                    |
-                   +--------------------------------+
-                                   |
-                                   v
-                   +--------------------------------+
-                   | RateLimitPolicy              |
-                   +--------------------------------+
-                                   |
-                                   v
-                   +--------------------------------+
-                   | RateLimiterRegistry          |
-                   +--------------------------------+
-                                   |
-                                   v
-             +------------------------------------------------+
-             | Token Bucket / Sliding Window / Fixed Window   |
-             +------------------------------------------------+
-                                   |
-                                   v
-                   +--------------------------------+
-                   | CircuitBreakerRateLimiter     |
-                   +--------------------------------+
-                                   |
-                                   v
-                   +--------------------------------+
-                   | ResilientRateLimiter          |
-                   +--------------------------------+
-                                   |
-                                   v
-                      +---------------------------+
-                      | Redis + Lua Scripts       |
-                      +---------------------------+
+                          Client Requests
+                                 |
+                                 v
+                    +---------------------------+
+                    |      Load Balancer        |
+                    +---------------------------+
+                      /            |            \
+                     /             |             \
+                    v              v              v
+
+             +------------+ +------------+ +------------+
+             | App Node 1 | | App Node 2 | | App Node 3 |
+             | Port 8080  | | Port 8081  | | Port 8082  |
+             +------------+ +------------+ +------------+
+                    \            |            /
+                     \           |           /
+                      \          |          /
+                               v
+                    +---------------------------+
+                    |        Redis + Lua        |
+                    +---------------------------+
 ```
 
 ---
 
-# HTTP Architecture
+# HTTP Request Flow
 
-The project initially implemented annotation-driven rate limiting using Spring MVC interceptors.
-
-During development, the architecture evolved to a filter-based approach using `OncePerRequestFilter`.
-
-## Why the change?
-
-Spring MVC interceptors execute only for successfully mapped controller methods.
-
-This can leave gaps for:
-
-- Unmapped endpoints (404 probing)
-- Malformed requests
-- Requests blocked before handler resolution
-
-The final architecture uses servlet filters because they guarantee interception of **every incoming request**, making the implementation closer to production API gateways and infrastructure components.
+```text
+Client Request
+      |
+      v
+OncePerRequestFilter
+      |
+      v
+Key Extractor
+      |
+      v
+Rate Limit Policy
+      |
+      v
+RateLimiterRegistry
+      |
+      v
+Selected Algorithm
+      |
+      v
+Circuit Breaker
+      |
+      v
+Resilience Layer
+      |
+      v
+Redis Lua Script
+```
 
 ---
 
@@ -163,121 +165,125 @@ The final architecture uses servlet filters because they guarantee interception 
 
 ## Token Bucket
 
-Maintains a bucket of tokens replenished continuously over time.
-
-### Characteristics
-
-- Allows short bursts of traffic
-- Smooths request rates over time
+- Allows short bursts
+- Smooth request rate
 - O(1) memory per key
-- Widely used in production API gateways
+- Production API Gateway friendly
 
 ---
 
 ## Sliding Window Counter
 
-Combines counts from adjacent windows using weighted calculations.
-
-### Characteristics
-
-- Smoother request distribution
-- Reduces fixed-window boundary bursts
-- O(1) memory per key
-- Weighted approximation of a true sliding window
+- Smooth rate limiting
+- Reduces burst effects
+- Weighted approximation
+- O(1) memory
 
 ---
 
 ## Fixed Window
 
-Counts requests within discrete time windows.
-
-### Characteristics
-
 - Simple implementation
-- O(1) memory per key
-- Can suffer from boundary burst issues
+- O(1) memory
+- Fast execution
 
 ---
 
 # Distributed Design
 
-Rate limiting state is stored in Redis to ensure consistent enforcement across distributed application instances.
+Rate limiting state is stored inside Redis.
 
-Redis Lua scripts execute atomically on the Redis server and perform:
+Each request executes an atomic Lua script that:
 
-- Read current state
-- Refill tokens or update counters
-- Consume tokens
-- Persist updated state
+- Reads current state
+- Calculates refill or window values
+- Applies the request
+- Persists updated state
 
-Using Lua guarantees:
+This guarantees:
 
-- Single round-trip execution
-- Atomicity
-- Elimination of race conditions
-- Consistent behavior under concurrency
+- Atomic execution
+- No race conditions
+- Single Redis round trip
+- Correct distributed behavior
 
 ---
 
-# Key Abstraction Design
+# Multi-Instance Deployment
 
-The limiter core is intentionally independent of request details.
+The application has been validated using Docker Compose with three independent Spring Boot instances sharing a single Redis instance.
 
-The core API accepts:
+```text
+App1 (8080)
+       \
+App2 (8081) ---> Shared Redis
+       /
+App3 (8082)
+```
+
+Validation proved:
+
+- Shared distributed quota
+- Cross-instance consistency
+- Global rate limit enforcement
+
+Example:
+
+```
+App1 -> Remaining 4
+App2 -> Remaining 3
+App3 -> Remaining 2
+App1 -> Remaining 1
+App2 -> Remaining 0
+App3 -> HTTP 429
+```
+
+This demonstrates that all application instances enforce one global quota.
+
+---
+
+# Key Abstraction
+
+The limiter core remains completely independent of HTTP concerns.
+
+Core API:
 
 ```java
 tryAcquire(String key, RateLimitRule rule)
 ```
 
-The limiter itself has no knowledge of:
+Supported extractors:
 
-- IP addresses
-- User identities
-- API keys
-- Tenants
+- IP Address
+- User ID
 
-These concerns are delegated to pluggable `KeyExtractor` implementations.
-
-Currently supported:
-
-- `IpKeyExtractor`
-- `UserIdKeyExtractor`
-
-This design allows additional dimensions to be added without modifying the limiter core.
-
-Examples:
-
-```text
-ip:10.0.0.1:/payments
-user:123:/payments
-```
+Additional extractors can be introduced without modifying the limiter implementation.
 
 ---
 
-# Resilience Design
+# Resilience
 
-The resilience layer protects the application during infrastructure failures.
+Supported failure strategies:
 
-## Failure Strategies
+## Fail Open
 
-### Fail Open
-
-Requests are allowed when Redis becomes unavailable.
+Requests continue when Redis becomes unavailable.
 
 Suitable for:
 
-- Customer-facing APIs
-- Authentication systems
-- High availability environments
+- Customer APIs
+- Authentication
+- High availability
 
-### Fail Closed
+---
+
+## Fail Closed
 
 Requests are rejected when Redis becomes unavailable.
 
 Suitable for:
 
-- Expensive APIs
-- Internal platform protection
+- Internal services
 - Strict quota enforcement
 
 ---
@@ -290,20 +296,19 @@ Supported states:
 - OPEN
 - HALF_OPEN
 
-The implementation includes:
+Features include:
 
-- Configurable failure thresholds
-- Configurable recovery windows
-- Single probe request during HALF_OPEN state
-- Automatic recovery detection
+- Configurable thresholds
+- Automatic recovery
+- Single probe request
 
 ---
 
-# Metrics and Observability
+# Metrics
 
-Metrics are exposed through:
+Metrics exposed through:
 
-```text
+```
 /actuator/metrics
 /actuator/prometheus
 /actuator/health
@@ -311,20 +316,12 @@ Metrics are exposed through:
 
 Example metrics:
 
-```text
+```
 ratelimiter.requests.allowed
 ratelimiter.requests.blocked
 ratelimiter.redis.failures
 ratelimiter.circuitbreaker.open.transitions
 ratelimiter.request.duration
-```
-
-Metrics are tagged by algorithm:
-
-```text
-TOKEN_BUCKET
-SLIDING_WINDOW_COUNTER
-FIXED_WINDOW
 ```
 
 ---
@@ -333,65 +330,42 @@ FIXED_WINDOW
 
 | Technology | Purpose |
 |------------|---------|
-| Java 21 | Core implementation |
-| Spring Boot | Dependency Injection and configuration |
+| Java 17 | Core implementation |
+| Spring Boot | Application framework |
 | Redis | Distributed shared state |
-| Lua | Atomic server-side execution |
-| Maven | Build management |
-| Micrometer | Metrics collection |
-| Spring Boot Actuator | Observability |
-| Prometheus | Metrics export |
-| JUnit 5 | Unit testing |
-| Mockito | Mocking framework |
-| Testcontainers | Integration testing |
+| Lua | Atomic execution |
 | Docker | Containerization |
-
----
-
-# Project Structure
-
-```text
-src/main/java
-├── config
-├── controller
-├── core
-│   ├── algorithm
-│   ├── clock
-│   ├── model
-│   └── registry
-├── exceptions
-├── http
-├── key
-├── metrics
-├── policy
-├── redis
-└── resilience
-```
+| Docker Compose | Multi-instance deployment |
+| Maven | Build |
+| Micrometer | Metrics |
+| Actuator | Observability |
+| Prometheus | Metrics export |
+| JUnit 5 | Testing |
+| Mockito | Mocking |
+| Testcontainers | Integration testing |
 
 ---
 
 # Testing
 
-The project includes:
+The project contains:
 
-- Unit tests for all algorithms
+- Unit tests
+- Integration tests
 - Redis integration tests
-- Concurrency correctness tests
-- Deterministic clock-based tests
 - Circuit breaker tests
 - Resilience tests
-- HTTP integration tests
-- Filter tests
+- HTTP filter tests
 - Registry tests
-- Dynamic configuration tests
+- Configuration tests
+- Docker-based distributed validation
+- Multi-instance correctness validation
 
-Run all tests:
+Run:
 
 ```bash
 mvn clean test
 ```
-
-Integration tests require Docker to be running locally.
 
 ---
 
@@ -400,18 +374,22 @@ Integration tests require Docker to be running locally.
 ## Completed
 
 - Core abstractions
-- Token Bucket algorithm
-- Sliding Window Counter algorithm
-- Fixed Window algorithm
+- Token Bucket
+- Sliding Window Counter
+- Fixed Window
 - Redis integration
 - Redis Lua scripting
-- Registry-based algorithm resolution
-- Dynamic configuration support
+- Registry architecture
+- Dynamic rule configuration
+- HTTP filter integration
 - Key extraction layer
-- Global HTTP filtering
-- Resilience layer
-- Circuit Breaker implementation
-- Metrics and observability
+- Circuit Breaker
+- Fail Open / Fail Closed
+- Micrometer metrics
+- Prometheus integration
+- Docker support
+- Docker Compose deployment
+- Multi-instance distributed validation
 - Comprehensive testing suite
 
 ---
@@ -420,57 +398,69 @@ Integration tests require Docker to be running locally.
 
 ## Next Phase
 
-### Phase 7 — Multi-Instance Validation
+### Performance Benchmarking
 
-- Multiple Spring Boot instances
-- Shared Redis deployment
-- Docker Compose setup
-- Distributed correctness validation
+- k6 load testing
+- Throughput benchmarking
+- Latency benchmarking
+- Algorithm comparison
+- Stress testing
+- Benchmark reports
+
+---
 
 ## Future Enhancements
 
-- Load testing using k6
-- Benchmark generation
-- OpenTelemetry integration
 - Dynamic rule reloading
-- API key extraction
+- API Key extractor
 - Tenant-based rate limiting
+- OpenTelemetry tracing
+- Redis Cluster support
 
 ---
 
 # Documentation
 
-Additional documentation is available in the `docs/` directory.
+The `docs/` directory contains detailed documentation covering:
 
-Examples include:
-
-- Architecture overview
+- System architecture
 - Algorithm comparison
-- Redis integration design
-- Failure mode analysis
-- Benchmark results
+- Redis integration
+- Lua scripting
+- Distributed deployment
+- Resilience design
+- Metrics
 - Testing strategy
+- Performance benchmarking (planned)
 
 ---
 
 # Status
 
-🚧 **Project currently under active development**
+ **Feature Complete**
 
-Current completion status:
+Completed phases:
 
-```text
-Phase 0  ✓ Foundation
-Phase 1  ✓ Algorithms
-Phase 2  ✓ Distributed Redis
-Phase 3  ✓ Resilience
-Phase 4  ✓ Observability
-Phase 5  ✓ Dynamic Configuration
-Phase 6  ✓ Spring Integration
-Phase 6.5 ✓ Filter-based HTTP Enforcement
-
-Next:
-Phase 7 → Multi-Instance Validation
+```
+✓ Foundation
+✓ Core Algorithms
+✓ Redis Integration
+✓ Lua Scripting
+✓ Resilience Layer
+✓ Metrics & Observability
+✓ Dynamic Configuration
+✓ HTTP Filter Integration
+✓ Docker Support
+✓ Multi-Instance Distributed Deployment
 ```
 
-Each implementation phase is represented through meaningful Git commit history.
+Current focus:
+
+```
+Performance Benchmarking
+Stress Testing
+Documentation
+Project Polish
+```
+
+The project has successfully demonstrated distributed rate limiting across multiple Spring Boot instances sharing a common Redis backend with globally enforced quotas.
