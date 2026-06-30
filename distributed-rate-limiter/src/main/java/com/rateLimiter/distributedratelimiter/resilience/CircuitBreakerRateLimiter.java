@@ -7,6 +7,7 @@ import com.rateLimiter.distributedratelimiter.core.model.RateLimitResult;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitRule;
 import com.rateLimiter.distributedratelimiter.exceptions.CircuitBreakerOpenException;
 import com.rateLimiter.distributedratelimiter.metrics.RateLimiterMetrics;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -14,6 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
+@Slf4j
 public class CircuitBreakerRateLimiter implements RateLimiter {
 
     private final RateLimiter delegate;
@@ -83,7 +85,7 @@ public class CircuitBreakerRateLimiter implements RateLimiter {
 
                 case HALF_OPEN:
                     if (probeInProgress.compareAndSet(false, true)) {
-                        System.out.println(
+                        log.debug(
                                 "HALF_OPEN: allowing single probe request");
                         return;
                     }
@@ -128,7 +130,7 @@ public class CircuitBreakerRateLimiter implements RateLimiter {
 
     private boolean shouldTransitionToHalfOpen() {
 
-        System.out.println(
+        log.debug(
                 "Circuit state transition: OPEN -> HALF_OPEN");
         long elapsedMillis = clockProvider.currentTimeMillis() - openTimestamp;
         return elapsedMillis >= config.waitDurationInOpenState()
@@ -139,7 +141,7 @@ public class CircuitBreakerRateLimiter implements RateLimiter {
     private void onSuccess() {
         consecutiveFailures.set(0);
         if (state.get() == CircuitBreakerState.HALF_OPEN) {
-            System.out.println(
+            log.debug(
                     "Circuit state transition: HALF_OPEN -> CLOSED");
             state.set(CircuitBreakerState.CLOSED);
             probeInProgress.set(false);
@@ -162,7 +164,7 @@ public class CircuitBreakerRateLimiter implements RateLimiter {
     private void reopenCircuit() {
         CircuitBreakerState previousState=state.getAndSet(CircuitBreakerState.OPEN);
         if(previousState!=CircuitBreakerState.OPEN){
-            System.out.println(
+            log.debug(
                     "Circuit state transition: "
                             + previousState + " -> OPEN");
             metrics.recordCircuitBreakerOpened(algorithm);

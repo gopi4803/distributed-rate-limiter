@@ -61,20 +61,20 @@ public class RateLimitFilterConfiguration {
                 metrics);
     }
 
-//    @Bean
-//    public FilterRegistrationBean<RateLimitFilter>
-//    filterRegistrationBean(
-//            RateLimitFilter filter) {
-//
-//        FilterRegistrationBean<RateLimitFilter> registration =
-//                new FilterRegistrationBean<>();
-//
-//        registration.setFilter(filter);
-//
-//        registration.addUrlPatterns("/*");
-//
-//        registration.setOrder(1);
-//
-//        return registration;
-//    }
+    @Bean
+    public FilterRegistrationBean<RateLimitFilter>
+    filterRegistrationBean(
+            RateLimitFilter filter) {
+
+        FilterRegistrationBean<RateLimitFilter> registration =
+                new FilterRegistrationBean<>();
+
+        registration.setFilter(filter);
+
+        registration.addUrlPatterns("/*");
+
+        registration.setOrder(1);
+
+        return registration;
+    }
 }

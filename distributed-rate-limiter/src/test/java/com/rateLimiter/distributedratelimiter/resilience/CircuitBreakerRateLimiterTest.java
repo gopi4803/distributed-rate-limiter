@@ -534,18 +534,21 @@ class CircuitBreakerRateLimiterTest {
     @Test
     void shouldRecordMetricWhenCircuitTransitionsToOpen() {
 
-        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+        SimpleMeterRegistry meterRegistry =
+                new SimpleMeterRegistry();
 
         RateLimiterMetrics metrics =
                 new RateLimiterMetrics(meterRegistry);
 
-        RateLimiter delegate = mock(RateLimiter.class);
+        RateLimiter delegate =
+                mock(RateLimiter.class);
 
-        ClockProvider clockProvider = mock(ClockProvider.class);
+        ClockProvider clockProvider =
+                mock(ClockProvider.class);
 
         CircuitBreakerConfig config =
                 new CircuitBreakerConfig(
-                        1, // Open circuit after first failure
+                        1,
                         Duration.ofSeconds(30));
 
         CircuitBreakerRateLimiter circuitBreaker =
@@ -556,20 +559,35 @@ class CircuitBreakerRateLimiterTest {
                         metrics,
                         Algorithm.TOKEN_BUCKET);
 
-        RateLimitRule rule = mock(RateLimitRule.class);
+        RateLimitRule rule =
+                new RateLimitRule(
+                        "test-rule",
+                        5,
+                        Duration.ofSeconds(10),
+                        Algorithm.TOKEN_BUCKET);
 
-        when(delegate.tryAcquire(anyString(), any(RateLimitRule.class)))
-                .thenThrow(new RedisExecutionException("Redis unavailable",null));
+        when(delegate.tryAcquire(
+                anyString(),
+                any(RateLimitRule.class)))
+                .thenThrow(
+                        new RedisExecutionException(
+                                "Redis unavailable",
+                                null));
 
         assertThrows(
                 RedisExecutionException.class,
-                () -> circuitBreaker.tryAcquire("user-1", rule));
+                () -> circuitBreaker.tryAcquire(
+                        "user-1",
+                        rule));
 
-        double count = meterRegistry.get(
-                        "ratelimiter.circuitbreaker.open.transitions")
-                .tag("algorithm", "TOKEN_BUCKET")
-                .counter()
-                .count();
+        double count =
+                meterRegistry.get(
+                                "ratelimiter.circuitbreaker.open.transitions")
+                        .tag(
+                                "algorithm",
+                                "TOKEN_BUCKET")
+                        .counter()
+                        .count();
 
         assertEquals(1.0, count);
     }

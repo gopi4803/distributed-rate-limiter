@@ -243,10 +243,6 @@ class RedisLuaTokenBucketLimiterTest {
 
         executor.shutdown();
 
-        System.out.println(
-                "Allowed Requests = "
-                        + allowedRequests.get());
-
         assertEquals(
                 rule.limit(),
                 allowedRequests.get());
@@ -275,5 +271,28 @@ class RedisLuaTokenBucketLimiterTest {
         assertEquals(
                 9,
                 result.remaining());
+    }
+
+    /*
+     * Verifies Redis Lua tonumber() correctly parses
+     * scientific notation values produced by
+     * String.valueOf(double), e.g. 1.1574074074074073E-8.
+     */
+    @Test
+    void shouldHandleVerySmallRefillRates() {
+
+        RateLimitRule rule =
+                new RateLimitRule(
+                        "slow-refill",
+                        1,
+                        Duration.ofDays(1),
+                        Algorithm.TOKEN_BUCKET);
+
+        RateLimitResult result =
+                limiter.tryAcquire(
+                        "slow-user",
+                        rule);
+
+        assertTrue(result.allowed());
     }
 }

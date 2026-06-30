@@ -247,10 +247,6 @@ class RedisLuaSlidingWindowLimiterTest {
 
         executor.shutdown();
 
-        System.out.println(
-                "Allowed Requests = "
-                        + allowedRequests.get());
-
         assertEquals(
                 rule.limit(),
                 allowedRequests.get());
