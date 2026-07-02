@@ -31,3 +31,8 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Benchmark generated artifacts
+benchmark/results/
+benchmark/reports/
+benchmark/graphs/
