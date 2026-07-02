@@ -32,7 +32,18 @@ build/
 ### VS Code ###
 .vscode/
 
+# ===============================
 # Benchmark generated artifacts
-benchmark/results/
-benchmark/reports/
-benchmark/graphs/
+# ===============================
+
+benchmark/results/**
+!benchmark/results/**/
+!benchmark/results/**/.gitkeep
+
+benchmark/reports/**
+!benchmark/reports/
+!benchmark/reports/.gitkeep
+
+benchmark/graphs/**
+!benchmark/graphs/
+!benchmark/graphs/.gitkeep
