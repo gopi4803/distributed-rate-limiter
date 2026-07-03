@@ -15,21 +15,6 @@ The benchmark suite is designed to measure:
 
 Benchmarks are executed using **k6**.
 
----
-
-## Directory Structure
-
-```text
-benchmark/
-│
-├── scenarios/
-├── configs/
-├── results/
-├── reports/
-└── graphs/
-```
-
----
 
 ## Scenarios
 
@@ -44,4 +29,66 @@ benchmark/
 
 ---
 
+# Benchmark Framework
+
+This directory contains the complete benchmarking framework for the Distributed Rate Limiter.
+
+## Structure
+
+configs/
+Benchmark configurations.
+
+lib/
+Shared benchmark utilities.
+
+scenarios/
+k6 benchmark scenarios.
+
+results/
+Raw benchmark outputs.
+
+reports/
+Processed benchmark datasets.
+
+graphs/
+Generated benchmark figures.
+
+scripts/
+Automation scripts.
+
+## Benchmark Workflow
+
+Validation
+
+↓
+
+Infrastructure Benchmark
+
+↓
+
+Behavioral Benchmark
+
+↓
+
+Distributed Benchmark
+
+↓
+
+Stress Benchmark
+
+## Generate Graphs
+
+```bash
+python benchmark/scripts/generate_graphs.py
+```
+
+## Reports
+
+See:
+
+```
+docs/benchmark/
+```
+
+for complete benchmark documentation.
 This benchmark suite is intentionally incremental. Each scenario answers one specific engineering question and builds upon the previous scenarios.
