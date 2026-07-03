@@ -75,9 +75,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
             if (!result.allowed()) {
 
-                metrics.recordBlocked(
-                        rule.algorithm());
-
                 response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
                 response.setHeader(
                         "Retry-After",
@@ -102,7 +99,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
                 return;
             }
-            metrics.recordAllowed(rule.algorithm());
         }
 
 
