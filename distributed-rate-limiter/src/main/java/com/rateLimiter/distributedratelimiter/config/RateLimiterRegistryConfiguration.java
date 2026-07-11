@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 @Configuration
-@EnableConfigurationProperties(RateLimiterProperties.class)
+@EnableConfigurationProperties({RateLimiterProperties.class, BenchmarkDiagnosticsProperties.class})
 public class RateLimiterRegistryConfiguration {
 
     @Bean

@@ -30,12 +30,14 @@ public class RateLimitFilterConfiguration {
     public RateLimitFilter rateLimitFilter(
             RateLimiterRegistry registry,
             List<RateLimitPolicy> policies,
-            RateLimiterMetrics metrics) {
+            RateLimiterMetrics metrics,
+            BenchmarkDiagnosticsProperties diagnostics) {
 
         return new RateLimitFilter(
                 registry,
                 policies,
-                metrics);
+                metrics,
+                diagnostics);
     }
 
     @Bean

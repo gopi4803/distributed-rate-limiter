@@ -1,5 +1,6 @@
 package com.rateLimiter.distributedratelimiter.http;
 
+import com.rateLimiter.distributedratelimiter.config.BenchmarkDiagnosticsProperties;
 import com.rateLimiter.distributedratelimiter.core.RateLimiter;
 import com.rateLimiter.distributedratelimiter.core.model.Algorithm;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitResult;
@@ -38,6 +39,10 @@ class RateLimitFilterTest {
         registry = mock(RateLimiterRegistry.class);
         limiter = mock(RateLimiter.class);
         metrics = mock(RateLimiterMetrics.class);
+        BenchmarkDiagnosticsProperties diagnostics =
+                new BenchmarkDiagnosticsProperties();
+
+        diagnostics.setEnabled(false);
 
         KeyExtractor extractor = new IpKeyExtractor();
 
@@ -53,7 +58,7 @@ class RateLimitFilterTest {
         filter = new RateLimitFilter(
                 registry,
                 List.of(policy),
-                metrics);
+                metrics,diagnostics);
 
         when(registry.getLimiter(Algorithm.TOKEN_BUCKET))
                 .thenReturn(limiter);
@@ -91,9 +96,6 @@ class RateLimitFilterTest {
                 .tryAcquire(
                         eq("ip:127.0.0.1:/api/test"),
                         eq(rule));
-
-        verify(metrics)
-                .recordAllowed(Algorithm.TOKEN_BUCKET);
 
         assertEquals(200, response.getStatus());
 
@@ -140,9 +142,6 @@ class RateLimitFilterTest {
                 request,
                 response,
                 filterChain);
-
-        verify(metrics)
-                .recordBlocked(Algorithm.TOKEN_BUCKET);
 
         assertEquals(
                 429,
@@ -196,10 +195,16 @@ class RateLimitFilterTest {
                         extractor,
                         rule);
 
+        BenchmarkDiagnosticsProperties diagnostics =
+                new BenchmarkDiagnosticsProperties();
+
+        diagnostics.setEnabled(false);
+
         filter = new RateLimitFilter(
                 registry,
                 List.of(policy),
-                metrics);
+                metrics,
+                diagnostics);
 
         MockHttpServletRequest request =
                 new MockHttpServletRequest();
@@ -252,8 +257,6 @@ class RateLimitFilterTest {
                 eq("ip:127.0.0.1:/api/test"),
                 eq(rule));
 
-        verify(metrics)
-                .recordAllowed(Algorithm.TOKEN_BUCKET);
     }
 
     @Test

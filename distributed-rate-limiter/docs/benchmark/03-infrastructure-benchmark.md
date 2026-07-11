@@ -199,7 +199,7 @@ Additional concurrency continued increasing throughput but with progressively sm
 This indicates the application gradually approached resource saturation.
 
 
-![Throughput](../../benchmark/graphs/throughput-vs-vus.png)
+![Throughput](../../benchmark/graphs/single-node/throughput-vs-vus.png)
 
 ---
 
@@ -216,7 +216,7 @@ No abnormal latency spikes or instability were observed.
 
 ## Average Latency
 
-![Average Latency](../../benchmark/graphs/avg-latency-vs-vus.png)
+![Average Latency](../../benchmark/graphs/single-node/avg-latency-vs-vus.png)
 
 ---
 
@@ -254,13 +254,13 @@ This behaviour is expected for a Redis-backed application executing Lua scripts 
 
 ## P95 Latency
 
-![P95](../../benchmark/graphs/p95-latency-vs-vus.png)
+![P95](../../benchmark/graphs/single-node/p95-latency-vs-vus.png)
 
 ---
 
 ## Scaling Efficiency
 
-![Scaling](../../benchmark/graphs/scaling-efficiency.png)
+![Scaling](../../benchmark/graphs/single-node/scaling-efficiency.png)
 ---
 
 
