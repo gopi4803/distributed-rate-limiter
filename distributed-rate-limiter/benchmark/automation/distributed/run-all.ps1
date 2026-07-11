@@ -84,8 +84,8 @@ foreach($vu in $infrastructureVUs){
         -Limit $InfrastructureLimit `
         -Window $Window `
         -VUs $vu `
-        -Duration "30s"
-
+        -Duration "30s" `
+        -SkipRestart
 }
 
 #
