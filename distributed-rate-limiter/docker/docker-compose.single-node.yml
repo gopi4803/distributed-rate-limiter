@@ -1,0 +1,63 @@
+services:
+
+  redis:
+    image: redis:7-alpine
+
+    ports:
+      - "6379:6379"
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+    networks:
+      - drl-network
+
+
+  app:
+
+    build:
+      context: ..
+      dockerfile: Dockerfile
+
+    image: distributed-rate-limiter
+
+    ports:
+      - "8080:8080"
+
+    env_file:
+      - benchmark.env
+
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      HOSTNAME: drl-app
+
+    depends_on:
+      redis:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--spider",
+          "-q",
+          "http://localhost:8080/actuator/health"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+    networks:
+      - drl-network
+
+
+networks:
+
+  drl-network:
+    driver: bridge

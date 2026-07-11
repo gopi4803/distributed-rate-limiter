@@ -7,8 +7,6 @@ import com.rateLimiter.distributedratelimiter.key.KeyExtractor;
 import com.rateLimiter.distributedratelimiter.key.UserIdKeyExtractor;
 import com.rateLimiter.distributedratelimiter.metrics.RateLimiterMetrics;
 import com.rateLimiter.distributedratelimiter.policy.RateLimitPolicy;
-import com.rateLimiter.distributedratelimiter.policy.RateLimitRuleProvider;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,36 +27,17 @@ public class RateLimitFilterConfiguration {
     }
 
     @Bean
-    public List<RateLimitPolicy> rateLimitPolicies(
-            @Qualifier("ipKeyExtractor")
-            KeyExtractor ipExtractor,
-
-            @Qualifier("userIdKeyExtractor")
-            KeyExtractor userExtractor,
-
-            RateLimitRuleProvider ruleProvider) {
-
-        return List.of(
-                new RateLimitPolicy(
-                        ipExtractor,
-                        ruleProvider.getRule("demo")),
-
-                new RateLimitPolicy(
-                        userExtractor,
-                        ruleProvider.getRule("payments"))
-        );
-    }
-
-    @Bean
     public RateLimitFilter rateLimitFilter(
             RateLimiterRegistry registry,
             List<RateLimitPolicy> policies,
-            RateLimiterMetrics metrics) {
+            RateLimiterMetrics metrics,
+            BenchmarkDiagnosticsProperties diagnostics) {
 
         return new RateLimitFilter(
                 registry,
                 policies,
-                metrics);
+                metrics,
+                diagnostics);
     }
 
     @Bean

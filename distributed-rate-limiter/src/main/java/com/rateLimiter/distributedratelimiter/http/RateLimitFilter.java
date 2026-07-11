@@ -1,5 +1,6 @@
 package com.rateLimiter.distributedratelimiter.http;
 
+import com.rateLimiter.distributedratelimiter.config.BenchmarkDiagnosticsProperties;
 import com.rateLimiter.distributedratelimiter.core.RateLimiter;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitResult;
 import com.rateLimiter.distributedratelimiter.core.model.RateLimitRule;
@@ -22,16 +23,20 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final RateLimiterRegistry registry;
     private final List<RateLimitPolicy> policies;
     private final RateLimiterMetrics metrics;
+    private final BenchmarkDiagnosticsProperties diagnostics;
+
 
     public RateLimitFilter(
             RateLimiterRegistry registry,
             List<RateLimitPolicy> policies,
-            RateLimiterMetrics metrics) {
+            RateLimiterMetrics metrics,
+            BenchmarkDiagnosticsProperties diagnostics) {
 
         this.registry = Objects.requireNonNull(registry);
         this.metrics = Objects.requireNonNull(metrics);
         this.policies = List.copyOf(
                 Objects.requireNonNull(policies));
+        this.diagnostics=Objects.requireNonNull(diagnostics);
     }
 
     @Override
@@ -73,10 +78,19 @@ public class RateLimitFilter extends OncePerRequestFilter {
                     "X-RateLimit-Algorithm",
                     rule.algorithm().name());
 
-            if (!result.allowed()) {
+            if (diagnostics.isEnabled()) {
 
-                metrics.recordBlocked(
-                        rule.algorithm());
+                response.setHeader(
+                        "X-Instance",
+                        diagnostics.getInstance());
+
+                response.setHeader(
+                        "X-Redis-Key",
+                        key);
+
+            }
+
+            if (!result.allowed()) {
 
                 response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
                 response.setHeader(
@@ -102,7 +116,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
                 return;
             }
-            metrics.recordAllowed(rule.algorithm());
         }
 
 

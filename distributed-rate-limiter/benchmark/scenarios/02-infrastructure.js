@@ -2,7 +2,7 @@ import http from 'k6/http';
 
 import { config } from '../lib/config.js';
 import { urls } from '../lib/urls.js';
-import { validateRateLimiterResponse } from '../lib/checks.js';
+import { validateInfrastructureResponse } from '../lib/checks.js';
 
 const vus = Number(__ENV.VUS || 5);
 const duration = __ENV.DURATION || '30s';
@@ -35,6 +35,6 @@ export function infrastructureScenario() {
         }
     );
 
-    validateRateLimiterResponse(response);
+    validateInfrastructureResponse(response);
 
 }
