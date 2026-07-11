@@ -86,6 +86,16 @@ else {
 Clear-Redis `
     -Deployment $deployment
 
+if (-not $SkipRestart) {
+
+    Invoke-BenchmarkWarmup `
+        -Deployment $deployment `
+        -Algorithm $Algorithm `
+        -Limit $Limit `
+        -Window $Window
+
+}
+
 # ----------------------------------------------------------
 # Execute Benchmark
 # ----------------------------------------------------------

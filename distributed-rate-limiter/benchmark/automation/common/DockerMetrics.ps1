@@ -248,3 +248,122 @@ function Show-DockerSummary {
     Write-Host ""
 
 }
+
+# ----------------------------------------------------------
+# Start Docker Metrics Sampling
+# ----------------------------------------------------------
+
+function Start-DockerMetricsSampling {
+
+    param(
+
+        [Parameter(Mandatory)]
+        [ValidateSet("SingleNode","Distributed")]
+        [string]$Deployment,
+
+        [Parameter(Mandatory)]
+        [string]$OutputFile,
+
+        [int]$IntervalSeconds = 2
+
+    )
+
+    $config = Get-DeploymentConfiguration `
+                -Deployment $Deployment
+
+    Ensure-Directory `
+        -Path (Split-Path $OutputFile)
+
+    if(Test-Path $OutputFile){
+        Remove-Item $OutputFile
+    }
+
+    $job = Start-Job -ArgumentList `
+        $config.ComposeFile,
+        $config.ProjectName,
+        $OutputFile,
+        $IntervalSeconds `
+        -ScriptBlock {
+
+        param(
+            $composeFile,
+            $projectName,
+            $outputFile,
+            $interval
+        )
+
+        while($true){
+
+            $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+
+            docker stats `
+                --no-stream `
+                --format "{{json .}}" |
+            ForEach-Object {
+
+                if([string]::IsNullOrWhiteSpace($_)){
+                    continue
+                }
+
+                $stat = $_ | ConvertFrom-Json
+
+                [PSCustomObject]@{
+
+                    Timestamp     = $timestamp
+
+                    Name          = $stat.Name
+
+                    CPUPercent    = $stat.CPUPerc
+
+                    MemoryUsage   = $stat.MemUsage
+
+                    MemoryPercent = $stat.MemPerc
+
+                    NetworkIO     = $stat.NetIO
+
+                    BlockIO       = $stat.BlockIO
+
+                    Pids          = $stat.PIDs
+
+                }
+
+            } |
+            Export-Csv `
+                -Path $outputFile `
+                -Append `
+                -NoTypeInformation
+
+            Start-Sleep -Seconds $interval
+
+        }
+
+    }
+
+    return $job
+
+}
+
+# ----------------------------------------------------------
+# Stop Docker Metrics Sampling
+# ----------------------------------------------------------
+
+function Stop-DockerMetricsSampling {
+
+    param(
+
+        [Parameter(Mandatory)]
+        $Job
+
+    )
+
+    if($null -eq $Job){
+        return
+    }
+
+    Stop-Job $Job
+
+    Wait-Job $Job | Out-Null
+
+    Remove-Job $Job
+
+}

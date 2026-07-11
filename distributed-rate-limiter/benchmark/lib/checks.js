@@ -16,15 +16,15 @@ export function validateRateLimiterResponse(response) {
 
         'limit header correct':
             (r) =>
-                Number(r.headers['X-Ratelimit-Limit']) === config.expectedLimit,
+                Number(r.headers['X-RateLimit-Limit']) === config.expectedLimit,
 
         'remaining header valid':
             (r) =>
-                Number(r.headers['X-Ratelimit-Remaining']) >= 0,
+                Number(r.headers['X-RateLimit-Remaining']) >= 0,
 
         'algorithm correct':
             (r) =>
-                r.headers['X-Ratelimit-Algorithm'] === config.expectedAlgorithm
+                r.headers['X-RateLimit-Algorithm'] === config.expectedAlgorithm
 
     });
 
@@ -37,6 +37,14 @@ export function validateRateLimiterResponse(response) {
  */
 export function validateInfrastructureResponse(response) {
 
+    if (__VU === 1 && __ITER === 0) {
+        console.log(JSON.stringify({
+            expectedLimit: config.expectedLimit,
+            actualLimit: Number(response.headers["X-Ratelimit-Limit"]),
+            expectedAlgorithm: config.expectedAlgorithm,
+            actualAlgorithm: response.headers["X-Ratelimit-Algorithm"]
+        }, null, 2));
+    }
     return check(response, {
 
         'status is 200':
@@ -44,15 +52,15 @@ export function validateInfrastructureResponse(response) {
 
         'limit header correct':
             (r) =>
-                Number(r.headers['X-Ratelimit-Limit']) === config.expectedLimit,
+                Number(r.headers['X-RateLimit-Limit']) === config.expectedLimit,
 
         'remaining header valid':
             (r) =>
-                Number(r.headers['X-Ratelimit-Remaining']) >= 0,
+                Number(r.headers['X-RateLimit-Remaining']) >= 0,
 
         'algorithm correct':
             (r) =>
-                r.headers['X-Ratelimit-Algorithm'] === config.expectedAlgorithm
+                r.headers['X-RateLimit-Algorithm'] === config.expectedAlgorithm
 
     });
 
@@ -72,15 +80,15 @@ export function validateBehavioralResponse(response) {
 
         'limit header exists':
             (r) =>
-                r.headers['X-Ratelimit-Limit'] !== undefined,
+                r.headers['X-RateLimit-Limit'] !== undefined,
 
         'remaining header exists':
             (r) =>
-                r.headers['X-Ratelimit-Remaining'] !== undefined,
+                r.headers['X-RateLimit-Remaining'] !== undefined,
 
         'algorithm correct':
             (r) =>
-                r.headers['X-Ratelimit-Algorithm'] === config.expectedAlgorithm
+                r.headers['X-RateLimit-Algorithm'] === config.expectedAlgorithm
 
     });
 

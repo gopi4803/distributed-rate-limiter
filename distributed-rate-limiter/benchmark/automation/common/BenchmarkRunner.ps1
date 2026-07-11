@@ -3,9 +3,12 @@
 # Benchmark Runner
 # ==========================================================
 
-# ----------------------------------------------------------
-# Invoke K6 Benchmark
-# ----------------------------------------------------------
+# ==========================================================
+# Benchmark Defaults
+# ==========================================================
+
+$DefaultWarmupVUs = 5
+$DefaultWarmupDuration = "5s"
 
 # ----------------------------------------------------------
 # Invoke K6 Benchmark
@@ -61,6 +64,10 @@ function Invoke-K6Benchmark {
         (Get-BenchmarkDirectory) `
         "scenarios/$Scenario"
 
+    $liveMetricsFile = Join-Path `
+        $ResultDirectory `
+        "docker-live-metrics.csv"
+
     Write-Host ""
     Write-Host "==============================================="
     Write-Host "Running k6 Benchmark"
@@ -75,17 +82,33 @@ function Invoke-K6Benchmark {
     Write-Host "Duration : $Duration"
     Write-Host ""
 
-    k6 run `
-        -e BASE_URL=$($config.BaseUrl) `
-        -e BENCHMARK_ALGORITHM=$Algorithm `
-        -e BENCHMARK_LIMIT=$Limit `
-        -e BENCHMARK_WINDOW=$Window `
-        -e VUS=$VUs `
-        -e DURATION=$Duration `
-        --summary-export $summaryFile `
-        $scenarioFile
+    $dockerSamplingJob = Start-DockerMetricsSampling `
+        -Deployment $Deployment `
+        -OutputFile $liveMetricsFile
 
-    $exitCode = $LASTEXITCODE
+    $exitCode = -1
+
+    try {
+
+        k6 run `
+            -e BASE_URL=$($config.BaseUrl) `
+            -e BENCHMARK_ALGORITHM=$Algorithm `
+            -e BENCHMARK_LIMIT=$Limit `
+            -e BENCHMARK_WINDOW=$Window `
+            -e VUS=$VUs `
+            -e DURATION=$Duration `
+            --summary-export $summaryFile `
+            $scenarioFile
+
+        $exitCode = $LASTEXITCODE
+
+    }
+    finally {
+
+        Stop-DockerMetricsSampling `
+            -Job $dockerSamplingJob
+
+    }
 
     switch ($exitCode) {
 
@@ -116,6 +139,66 @@ function Invoke-K6Benchmark {
     }
 
     return $summaryFile
+
+}
+
+function Invoke-BenchmarkWarmup {
+
+    param(
+
+        [Parameter(Mandatory)]
+        [ValidateSet("SingleNode","Distributed")]
+        [string]$Deployment,
+
+        [Parameter(Mandatory)]
+        [ValidateSet(
+            "TOKEN_BUCKET",
+            "SLIDING_WINDOW_COUNTER",
+            "FIXED_WINDOW"
+        )]
+        [string]$Algorithm,
+
+        [Parameter(Mandatory)]
+        [int]$Limit,
+
+        [Parameter(Mandatory)]
+        [string]$Window,
+
+        [int]$VUs = $DefaultWarmupVUs,
+
+        [string]$Duration = $DefaultWarmupDuration
+
+    )
+
+    $config = Get-DeploymentConfiguration `
+                -Deployment $Deployment
+
+    $scenarioFile = Join-Path `
+        (Get-BenchmarkDirectory) `
+        "scenarios/02-infrastructure.js"
+
+    Write-Host ""
+    Write-Host "==============================================="
+    Write-Host "Warm-up Phase"
+    Write-Host "==============================================="
+    Write-Host ""
+
+    k6 run `
+        --quiet `
+        -e BASE_URL=$($config.BaseUrl) `
+        -e BENCHMARK_ALGORITHM=$Algorithm `
+        -e BENCHMARK_LIMIT=$Limit `
+        -e BENCHMARK_WINDOW=$Window `
+        -e VUS=$VUs `
+        -e DURATION=$Duration `
+        $scenarioFile | Out-Null
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Warm-up failed."
+    }
+
+    Write-Host "[OK] Warm-up completed."
+    Write-Host ""
 
 }
 
