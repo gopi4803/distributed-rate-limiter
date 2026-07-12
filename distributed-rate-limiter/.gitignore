@@ -43,7 +43,3 @@ benchmark/results/**
 benchmark/reports/**
 !benchmark/reports/
 !benchmark/reports/.gitkeep
-
-benchmark/graphs/**
-!benchmark/graphs/
-!benchmark/graphs/.gitkeep
