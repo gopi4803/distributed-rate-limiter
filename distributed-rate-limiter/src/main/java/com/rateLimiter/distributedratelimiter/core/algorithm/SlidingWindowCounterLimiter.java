@@ -46,12 +46,6 @@ public class SlidingWindowCounterLimiter implements RateLimiter {
             }
             window=rollWindowIfNeeded(window,currentWindowStart,windowSizeMillis);
             double effectiveCount=calculateEffectiveCount(window,now,windowSizeMillis);
-            System.out.println(
-                    "NOW=" + now +
-                            ", WINDOW_START=" + window.currentWindowStartMillis()
-                            + ", CURRENT_COUNT=" + window.currentWindowCount()
-                            + ", PREVIOUS_COUNT=" + window.previousWindowCount()
-                            + ", EFFECTIVE_COUNT=" + effectiveCount);
             if(effectiveCount<rule.limit()){
                 SlidingWindow updatedWindow=new SlidingWindow(window.currentWindowStartMillis(),window.currentWindowCount()+1,window.previousWindowCount());
                 windows.put(key,updatedWindow);

@@ -279,7 +279,8 @@ class RedisLuaTokenBucketLimiterTest {
      * String.valueOf(double), e.g. 1.1574074074074073E-8.
      */
     @Test
-    void shouldHandleVerySmallRefillRates() {
+    void shouldHandleVerySmallRefillRates()
+            throws InterruptedException {
 
         RateLimitRule rule =
                 new RateLimitRule(
@@ -288,11 +289,32 @@ class RedisLuaTokenBucketLimiterTest {
                         Duration.ofDays(1),
                         Algorithm.TOKEN_BUCKET);
 
-        RateLimitResult result =
+        // Consume the only token.
+        assertTrue(
+                limiter.tryAcquire(
+                        "slow-user",
+                        rule).allowed());
+
+        // Bucket should now be empty.
+        RateLimitResult blocked =
                 limiter.tryAcquire(
                         "slow-user",
                         rule);
 
-        assertTrue(result.allowed());
+        assertFalse(blocked.allowed());
+
+        // Wait briefly. This is nowhere near enough time
+        // for one token to refill at ~1/day.
+        Thread.sleep(100);
+
+        RateLimitResult stillBlocked =
+                limiter.tryAcquire(
+                        "slow-user",
+                        rule);
+
+        assertFalse(stillBlocked.allowed());
+
+        assertTrue(
+                stillBlocked.retryAfterMs() > 0);
     }
 }

@@ -55,6 +55,15 @@ Set-BenchmarkConfiguration `
 Restart-BenchmarkDeployment `
     -Deployment $deployment
 
+Clear-Redis `
+    -Deployment $deployment
+
+Invoke-BenchmarkWarmup `
+    -Deployment $deployment `
+    -Algorithm $Algorithm `
+    -Limit $Limit `
+    -Window $Window
+
 #
 # Validation
 #
@@ -68,6 +77,24 @@ Write-Host ""
     -Limit $Limit `
     -Window $Window `
     -SkipRestart
+
+Set-BenchmarkConfiguration `
+    -Algorithm $Algorithm `
+    -Limit $InfrastructureLimit `
+    -Window $Window
+
+Restart-BenchmarkDeployment `
+    -Deployment $deployment
+
+foreach($vu in $infrastructureVUs){
+    & "$PSScriptRoot/run-infrastructure.ps1" `
+        -Algorithm $Algorithm `
+        -Limit $InfrastructureLimit `
+        -Window $Window `
+        -VUs $vu `
+        -Duration "30s" `
+        -SkipRestart
+}
 
 #
 # Infrastructure
