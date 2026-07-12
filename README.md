@@ -1,367 +1,564 @@
 # Distributed Rate Limiter
 
-A production-oriented distributed rate limiter built from scratch using **Java**, **Spring Boot**, **Redis**, **Lua scripting**, and **Docker**.
+> A production-inspired distributed rate limiting system built using **Java**, **Spring Boot**, **Redis Lua scripting**, **Docker**, **NGINX**, and **k6**.
 
-The project explores how modern backend systems implement scalable, resilient, and distributed request throttling while maintaining correctness under concurrent load.
+The project demonstrates how modern backend systems implement scalable, consistent, and resilient request throttling across both **single-node** and **distributed deployments** while maintaining correctness under concurrent workloads.
 
----
-
-# Motivation
-
-Modern distributed systems must protect themselves from:
-
-- Traffic spikes
-- Malicious or abusive clients
-- Resource exhaustion
-- Cascading failures
-
-Implementing rate limiting in a distributed environment introduces several non-trivial challenges:
-
-- Shared distributed state
-- Race conditions
-- Atomicity guarantees
-- Horizontal scalability
-- Failure handling
-- Distributed consistency
-- Concurrency correctness
-
-This project demonstrates how these challenges can be solved using production-inspired architectural patterns and distributed systems techniques.
+It combines multiple rate limiting algorithms, Redis-backed distributed state management, resilience patterns, automated benchmarking, comprehensive testing, and production-oriented software design into a single end-to-end implementation.
 
 ---
 
-# Features
+<p align="center">
 
-## Core Features
+![Java](https://img.shields.io/badge/Java-17-orange)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-brightgreen)
+![Redis](https://img.shields.io/badge/Redis-7-red)
+![Lua](https://img.shields.io/badge/Lua-Atomic%20Execution-blue)
+![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED)
+![NGINX](https://img.shields.io/badge/NGINX-Load%20Balancer-009639)
+![k6](https://img.shields.io/badge/k6-Benchmarking-7D64FF)
+![JUnit](https://img.shields.io/badge/JUnit-5-success)
+![Testcontainers](https://img.shields.io/badge/Testcontainers-Integration%20Testing-46BA87)
 
-- Pluggable rate limiting architecture
-- Immutable domain model using Java Records
-- Registry-based runtime algorithm selection
-- Deterministic testing using clock abstraction
-- Dynamic rule configuration
-- Extensible architecture for future algorithms
-
----
-
-## Supported Algorithms
-
-- Token Bucket
-- Sliding Window Counter
-- Fixed Window
+</p>
 
 ---
 
-## Distributed Features
+# Highlights
 
-- Redis-backed distributed state management
-- Redis Lua scripting for atomic execution
-- Redis server time as the single source of truth
-- Multi-instance distributed deployment
-- Global quota enforcement across application instances
-- Elimination of race conditions through server-side Lua scripting
-
----
-
-## Resilience Features
-
-- Fail Open strategy
-- Fail Closed strategy
-- Circuit Breaker support
-- Graceful degradation during Redis failures
+*  Three production-inspired rate limiting algorithms
+*  Redis + Lua scripting for atomic distributed state updates
+*  Single-node and distributed deployment modes
+*  Circuit Breaker with configurable Fail Open / Fail Closed strategies
+*  Automated k6 benchmarking framework
+*  Performance report and graph generation
+*  Unit, integration, Redis, and concurrency testing
+*  Fully containerized deployment using Docker Compose
 
 ---
 
-## HTTP Integration Features
+# Why This Project?
 
-- Global request interception using `OncePerRequestFilter`
-- Multiple simultaneous rate limiting policies
-- Pluggable key extraction
-- HTTP 429 responses
-- Retry-After support
-- Standard Rate Limit headers
+Modern APIs must protect themselves from abusive traffic, sudden request spikes, and resource exhaustion without negatively impacting legitimate users.
+
+While implementing an in-memory rate limiter is relatively straightforward, building one that functions correctly across multiple application instances introduces several engineering challenges.
+
+These include:
+
+* Maintaining globally shared request quotas
+* Preventing race conditions during concurrent updates
+* Performing atomic operations on distributed state
+* Scaling horizontally without sacrificing correctness
+* Remaining resilient during infrastructure failures
+* Understanding the performance cost of distributed coordination
+
+This project explores those challenges by implementing a production-inspired distributed rate limiting system backed by **Redis Lua scripting** and validating its behaviour using an automated benchmarking framework.
+
+Rather than focusing only on rate limiting algorithms, the project demonstrates how they integrate into a complete backend system featuring:
+
+* HTTP request interception
+* Runtime algorithm selection
+* Distributed state management
+* Resilience patterns
+* Infrastructure automation
+* Performance benchmarking
+* Observability
+* Automated testing
 
 ---
 
-## Observability Features
+# Architecture Overview
 
-- Micrometer metrics
-- Spring Boot Actuator
-- Prometheus metrics
-- Per-algorithm metrics tagging
-- Request duration metrics
+The application is designed using a modular architecture that separates HTTP processing, policy resolution, algorithm execution, resilience mechanisms, and distributed state management.
 
----
-
-## Infrastructure Features
-
-- Dockerized Spring Boot application
-- Multi-stage Docker build
-- Docker Compose deployment
-- Three-node distributed cluster
-- Shared Redis deployment
-
----
-
-# High-Level Architecture
+This separation allows each subsystem to evolve independently while maintaining a consistent programming model.
 
 ```text
-                          Client Requests
-                                 |
-                                 v
-                    +---------------------------+
-                    |      Load Balancer        |
-                    +---------------------------+
-                      /            |            \
-                     /             |             \
-                    v              v              v
-
-             +------------+ +------------+ +------------+
-             | App Node 1 | | App Node 2 | | App Node 3 |
-             | Port 8080  | | Port 8081  | | Port 8082  |
-             +------------+ +------------+ +------------+
-                    \            |            /
-                     \           |           /
-                      \          |          /
-                               v
-                    +---------------------------+
-                    |        Redis + Lua        |
-                    +---------------------------+
+                          Client Request
+                                 │
+                                 ▼
+                     +-----------------------+
+                     |   RateLimitFilter     |
+                     +-----------------------+
+                                 │
+                                 ▼
+                     +-----------------------+
+                     |   RateLimitPolicy     |
+                     +-----------------------+
+                                 │
+                                 ▼
+                     +-----------------------+
+                     | RateLimiterRegistry   |
+                     +-----------------------+
+                                 │
+           ┌─────────────────────┼─────────────────────┐
+           │                     │                     │
+           ▼                     ▼                     ▼
+     Token Bucket       Sliding Window        Fixed Window
+           │                     │                     │
+           └─────────────────────┼─────────────────────┘
+                                 ▼
+                     +-----------------------+
+                     |  Circuit Breaker      |
+                     +-----------------------+
+                                 │
+                                 ▼
+                     +-----------------------+
+                     | Redis Lua Execution   |
+                     +-----------------------+
+                                 │
+                                 ▼
+                               Redis
+                                 │
+                                 ▼
+                          HTTP Response
 ```
+
+The architecture intentionally follows the principle of **separation of concerns**, allowing algorithms, storage implementations, resilience mechanisms, and request processing components to remain loosely coupled and independently testable.
 
 ---
 
-# HTTP Request Flow
+# Deployment Modes
+
+The project supports two deployment models, allowing direct comparison between a baseline implementation and a horizontally scalable distributed architecture.
+
+## Single-Node Deployment
+
+The single-node deployment is intended for:
+
+* Local development
+* Functional validation
+* Algorithm verification
+* Baseline performance benchmarking
+
+All requests are processed by a single Spring Boot application while Redis stores the shared rate limiting state.
 
 ```text
-Client Request
-      |
-      v
-OncePerRequestFilter
-      |
-      v
-Key Extractor
-      |
-      v
-Rate Limit Policy
-      |
-      v
-RateLimiterRegistry
-      |
-      v
-Selected Algorithm
-      |
-      v
-Circuit Breaker
-      |
-      v
-Resilience Layer
-      |
-      v
-Redis Lua Script
+                    Client
+                       │
+                       ▼
+              Spring Boot Application
+                       │
+                       ▼
+                Rate Limiter Core
+                       │
+                       ▼
+                  Redis + Lua
 ```
 
----
+## Distributed Deployment
+
+The distributed deployment demonstrates globally consistent rate limiting across multiple application instances.
+
+Incoming requests are distributed by **NGINX**, while every instance shares the same Redis backend. This guarantees consistent request quotas regardless of which application instance handles the request.
+
+```text
+                           Client
+                              │
+                              ▼
+                     +----------------+
+                     |     NGINX      |
+                     +----------------+
+                     /       │        \
+                    /        │         \
+                   ▼         ▼          ▼
+
+             +---------+ +---------+ +---------+
+             | App-1   | | App-2   | | App-3   |
+             +---------+ +---------+ +---------+
+                    \        │        /
+                     \       │       /
+                      \      │      /
+                           Redis
+                         (Lua Scripts)
+```
 
 # Supported Algorithms
 
-## Token Bucket
+The project currently implements three production-inspired rate limiting algorithms.
 
-- Allows short bursts
-- Smooth request rate
-- O(1) memory per key
-- Production API Gateway friendly
+| Algorithm                  | Description                                                        | Time Complexity | Distributed | Atomic |
+| -------------------------- | ------------------------------------------------------------------ | --------------: | :---------: | :----: |
+| **Token Bucket**           | Allows configurable bursts while maintaining a steady refill rate. |            O(1) |      ✅      |    ✅   |
+| **Sliding Window Counter** | Smooths traffic by approximating a sliding time window.            |            O(1) |      ✅      |    ✅   |
+| **Fixed Window**           | Simple counter-based algorithm using fixed time windows.           |            O(1) |      ✅      |    ✅   |
 
----
+Every algorithm implements the same `RateLimiter` interface, allowing runtime selection without changing application code.
 
-## Sliding Window Counter
-
-- Smooth rate limiting
-- Reduces burst effects
-- Weighted approximation
-- O(1) memory
+This makes it straightforward to add additional algorithms while preserving the existing infrastructure.
 
 ---
 
-## Fixed Window
+# Request Processing Flow
 
-- Simple implementation
-- O(1) memory
-- Fast execution
-
----
-
-# Distributed Design
-
-Rate limiting state is stored inside Redis.
-
-Each request executes an atomic Lua script that:
-
-- Reads current state
-- Calculates refill or window values
-- Applies the request
-- Persists updated state
-
-This guarantees:
-
-- Atomic execution
-- No race conditions
-- Single Redis round trip
-- Correct distributed behavior
-
----
-
-# Multi-Instance Deployment
-
-The application has been validated using Docker Compose with three independent Spring Boot instances sharing a single Redis instance.
+Every incoming request follows the same processing pipeline regardless of the selected algorithm.
 
 ```text
-App1 (8080)
-       \
-App2 (8081) ---> Shared Redis
-       /
-App3 (8082)
+                         HTTP Request
+                               │
+                               ▼
+                     RateLimitFilter
+                               │
+                               ▼
+                     RateLimitPolicy
+                               │
+                               ▼
+                      Client Key Extraction
+                               │
+                               ▼
+                    RateLimiterRegistry
+                               │
+                               ▼
+                  Selected Rate Limiter
+                               │
+                               ▼
+                      Circuit Breaker
+                               │
+                               ▼
+                      Redis Lua Script
+                               │
+                               ▼
+                           Redis Server
+                               │
+                               ▼
+                        RateLimitResult
+                               │
+                               ▼
+                        HTTP Response
 ```
 
-Validation proved:
+When a request is allowed, the response contains standard rate limiting headers including:
 
-- Shared distributed quota
-- Cross-instance consistency
-- Global rate limit enforcement
+* Configured request limit
+* Remaining quota
+* Selected algorithm
+* Retry information (when applicable)
 
-Example:
-
-```
-App1 -> Remaining 4
-App2 -> Remaining 3
-App3 -> Remaining 2
-App1 -> Remaining 1
-App2 -> Remaining 0
-App3 -> HTTP 429
-```
-
-This demonstrates that all application instances enforce one global quota.
+Rejected requests return **HTTP 429 (Too Many Requests)** together with a `Retry-After` header.
 
 ---
 
-# Key Abstraction
+# Repository Structure
 
-The limiter core remains completely independent of HTTP concerns.
+The repository is organized to separate application code, benchmark automation, deployment configuration, and documentation.
 
-Core API:
-
-```java
-tryAcquire(String key, RateLimitRule rule)
-```
-
-Supported extractors:
-
-- IP Address
-- User ID
-
-Additional extractors can be introduced without modifying the limiter implementation.
-
----
-
-# Resilience
-
-Supported failure strategies:
-
-## Fail Open
-
-Requests continue when Redis becomes unavailable.
-
-Suitable for:
-
-- Customer APIs
-- Authentication
-- High availability
-
----
-
-## Fail Closed
-
-Requests are rejected when Redis becomes unavailable.
-
-Suitable for:
-
-- Internal services
-- Strict quota enforcement
-
----
-
-## Circuit Breaker
-
-Supported states:
-
-- CLOSED
-- OPEN
-- HALF_OPEN
-
-Features include:
-
-- Configurable thresholds
-- Automatic recovery
-- Single probe request
-
----
-
-# Metrics
-
-Metrics exposed through:
-
-```
-/actuator/metrics
-/actuator/prometheus
-/actuator/health
-```
-
-Example metrics:
-
-```
-ratelimiter.requests.allowed
-ratelimiter.requests.blocked
-ratelimiter.redis.failures
-ratelimiter.circuitbreaker.open.transitions
-ratelimiter.request.duration
+```text
+distributed-rate-limiter
+│
+├── src/                     # Application source code
+│
+├── benchmark/               # Automated benchmark framework
+│   ├── automation/
+│   ├── graphs/
+│   ├── reports/
+│   ├── results/
+│   ├── scenarios/
+│   └── README.md
+│
+├── docs/                    # Technical documentation
+│   ├── benchmark/
+│   └── README.md
+│
+├── docker/                  # Docker Compose & NGINX configuration
+│
+├── Dockerfile
+├── pom.xml
 ```
 
 ---
 
-# Technology Stack
+# Quick Start
 
-| Technology | Purpose |
-|------------|---------|
-| Java 17 | Core implementation |
-| Spring Boot | Application framework |
-| Redis | Distributed shared state |
-| Lua | Atomic execution |
-| Docker | Containerization |
-| Docker Compose | Multi-instance deployment |
-| Maven | Build |
-| Micrometer | Metrics |
-| Actuator | Observability |
-| Prometheus | Metrics export |
-| JUnit 5 | Testing |
-| Mockito | Mocking |
-| Testcontainers | Integration testing |
+## Prerequisites
+
+Before running the project, ensure the following software is installed:
+
+* Java 17
+* Maven 3.9+
+* Docker
+* Docker Compose
+* Python 3 (for graph generation)
+* k6 (for benchmarking)
+
+---
+
+## Clone the Repository
+
+```bash
+git clone https://github.com/<your-username>/distributed-rate-limiter.git
+
+cd distributed-rate-limiter
+```
+
+---
+
+## Build the Project
+
+Compile the application and execute the complete test suite.
+
+```bash
+mvn clean install
+```
+
+---
+
+## Run Unit Tests
+
+```bash
+mvn test
+```
+
+---
+
+## Start the Single-Node Deployment
+
+```bash
+docker compose \
+    -f docker/docker-compose.single-node.yml \
+    up --build
+```
+
+---
+
+## Start the Distributed Deployment
+
+```bash
+docker compose \
+    -f docker/docker-compose.distributed.yml \
+    up --build
+```
+
+---
+
+## Execute Benchmarks
+
+### Single Node
+
+```powershell
+benchmark/automation/single-node/run-all.ps1
+```
+
+### Distributed
+
+```powershell
+benchmark/automation/distributed/run-all.ps1
+```
+
+The benchmark framework automatically performs:
+
+* Environment validation
+* Warm-up execution
+* Infrastructure benchmarks
+* Behavioural benchmarks
+* Docker metrics collection
+* Redis metrics collection
+* Spring Boot metrics collection
+* Benchmark report generation
+* Performance graph generation
+
+---
+
+# Benchmark Highlights
+
+Performance benchmarking is a first-class component of this project. Rather than relying solely on theoretical complexity, the implementation is validated under concurrent workloads using an automated benchmarking framework built with **k6**, **Docker**, **Redis**, and **Spring Boot Actuator**.
+
+The benchmark suite compares **single-node** and **distributed** deployments while collecting application, infrastructure, and Redis metrics.
+
+---
+
+## Infrastructure Benchmark
+
+The following results represent the **average of repeated benchmark executions**.
+
+### Throughput & Tail Latency
+
+| Concurrent VUs | Single Node (Req/s) | Distributed (Req/s) | Single P95 (ms) | Distributed P95 (ms) |
+|---------------:|--------------------:|--------------------:|----------------:|---------------------:|
+| 5 | 2546.64 | 2155.42 | 3.21 | 3.08 |
+| 10 | 3991.08 | 3151.82 | 3.36 | 4.07 |
+| 25 | 5909.17 | 4509.06 | 6.15 | 8.25 |
+| 50 | 6130.25 | 4738.67 | 13.03 | 17.02 |
+| 100 | 6025.64 | 5165.38 | 28.75 | 29.74 |
+
+---
+
+### Average Request Latency
+
+| Concurrent VUs | Single Node Avg (ms) | Distributed Avg (ms) |
+|---------------:|---------------------:|---------------------:|
+| 5 | 1.85 | 2.20 |
+| 10 | 2.36 | 3.01 |
+| 25 | 4.03 | 5.45 |
+| 50 | 7.95 | 10.45 |
+| 100 | 16.38 | 19.11 |
+
+---
+
+## Key Findings
+
+- **Single-node** consistently achieves **14–24% higher throughput** due to the absence of distributed coordination overhead.
+- **Distributed deployment** scales predictably while maintaining globally consistent request quotas across multiple application instances.
+- Additional latency is primarily introduced by **Redis communication**, **NGINX load balancing**, and **distributed state synchronization**.
+- **P95 latency remains below 30 ms** for both deployments even at **100 concurrent virtual users**.
+- All benchmark executions completed successfully while maintaining **correct rate limiting behaviour** and **cross-instance consistency**.
+
+---
+
+# Performance Graphs
+
+## Throughput Comparison
+
+<p align="center">
+  <img src="distributed-rate-limiter/benchmark/graphs/comparison/throughput-comparison.png" width="850" alt="Throughput Comparison">
+</p>
+
+---
+
+## Average Latency Comparison
+
+<p align="center">
+  <img src="distributed-rate-limiter/benchmark/graphs/comparison/average-latency-comparison.png" width="850" alt="Average Latency Comparison">
+</p>
+
+---
+
+## P95 Latency Comparison
+
+<p align="center">
+  <img src="distributed-rate-limiter/benchmark/graphs/comparison/p95-latency-comparison.png" width="850" alt="P95 Latency Comparison">
+</p>
+
+> **Note:** The comparison graphs above summarize the benchmark results across both deployment modes. Individual deployment graphs are available below.
+
+---
+
+<details>
+
+<summary><b> Single-Node Benchmark Graphs</b></summary>
+
+### Throughput vs Concurrent Users
+
+<p align="center">
+  <img src="distributed-rate-limiter/benchmark/graphs/single-node/infrastructure/throughput-vs-vus.png" width="850" alt="Single Node Throughput">
+</p>
+
+---
+
+### Average Latency vs Concurrent Users
+
+<p align="center">
+  <img src="distributed-rate-limiter/benchmark/graphs/single-node/infrastructure/average-latency-vs-vus.png" width="850" alt="Single Node Average Latency">
+</p>
+
+---
+
+### P95 Latency vs Concurrent Users
+
+<p align="center">
+  <img src="distributed-rate-limiter/benchmark/graphs/single-node/infrastructure/p95-latency-vs-vus.png" width="850" alt="Single Node P95 Latency">
+</p>
+
+---
+
+### Scaling Efficiency
+
+<p align="center">
+  <img src="distributed-rate-limiter/benchmark/graphs/single-node/infrastructure/scaling-efficiency.png" width="850" alt="Single Node Scaling Efficiency">
+</p>
+
+---
+
+### Failure Rate
+
+<p align="center">
+  <img src="distributed-rate-limiter/benchmark/graphs/single-node/infrastructure/failure-rate-vs-vus.png" width="850" alt="Single Node Failure Rate">
+</p>
+
+</details>
+
+---
+
+<details>
+
+<summary><b> Distributed Benchmark Graphs</b></summary>
+
+### Throughput vs Concurrent Users
+
+<p align="center">
+  <img src="distributed-rate-limiter/benchmark/graphs/distributed/infrastructure/throughput-vs-vus.png" width="850" alt="Distributed Throughput">
+</p>
+
+---
+
+### Average Latency vs Concurrent Users
+
+<p align="center">
+  <img src="distributed-rate-limiter/benchmark/graphs/distributed/infrastructure/average-latency-vs-vus.png" width="850" alt="Distributed Average Latency">
+</p>
+
+---
+
+### P95 Latency vs Concurrent Users
+
+<p align="center">
+  <img src="distributed-rate-limiter/benchmark/graphs/distributed/infrastructure/p95-latency-vs-vus.png" width="850" alt="Distributed P95 Latency">
+</p>
+
+---
+
+### Scaling Efficiency
+
+<p align="center">
+  <img src="distributed-rate-limiter/benchmark/graphs/distributed/infrastructure/scaling-efficiency.png" width="850" alt="Distributed Scaling Efficiency">
+</p>
+
+---
+
+### Failure Rate
+
+<p align="center">
+  <img src="distributed-rate-limiter/benchmark/graphs/distributed/infrastructure/failure-rate-vs-vus.png" width="850" alt="Distributed Failure Rate">
+</p>
+
+</details>
+
+---
+
+## Benchmark Framework
+
+The automated benchmarking framework provides:
+
+- Infrastructure benchmarking
+- Behavioural benchmarking
+- Automated deployment orchestration
+- Warm-up execution
+- Continuous Docker metrics collection
+- Spring Boot metrics collection
+- Redis metrics collection
+- Automated report generation
+- Performance graph generation
+- Repeatable benchmark execution
+
+For additional benchmark methodology and analysis, see the documentation under **`docs/benchmark/`**.
 
 ---
 
 # Testing
 
-The project contains:
+The project contains a comprehensive automated test suite covering correctness, resilience, and distributed behaviour.
 
-- Unit tests
-- Integration tests
-- Redis integration tests
-- Circuit breaker tests
-- Resilience tests
-- HTTP filter tests
-- Registry tests
-- Configuration tests
-- Docker-based distributed validation
-- Multi-instance correctness validation
+### Test Coverage
 
-Run:
+* Unit Tests
+* Integration Tests
+* Redis Lua Tests
+* Spring Boot Tests
+* Testcontainers Integration
+* Circuit Breaker Tests
+* Concurrency Validation
+* Distributed Behaviour Verification
+
+Execute the complete suite using:
 
 ```bash
 mvn clean test
@@ -369,98 +566,50 @@ mvn clean test
 
 ---
 
-# Current Progress
+# Technology Stack
 
-## Completed
-
-- Core abstractions
-- Token Bucket
-- Sliding Window Counter
-- Fixed Window
-- Redis integration
-- Redis Lua scripting
-- Registry architecture
-- Dynamic rule configuration
-- HTTP filter integration
-- Key extraction layer
-- Circuit Breaker
-- Fail Open / Fail Closed
-- Micrometer metrics
-- Prometheus integration
-- Docker support
-- Docker Compose deployment
-- Multi-instance distributed validation
-- Comprehensive testing suite
-
----
-
-# Roadmap
-
-## Next Phase
-
-### Performance Benchmarking
-
-- k6 load testing
-- Throughput benchmarking
-- Latency benchmarking
-- Algorithm comparison
-- Stress testing
-- Benchmark reports
-
----
-
-## Future Enhancements
-
-- Dynamic rule reloading
-- API Key extractor
-- Tenant-based rate limiting
-- OpenTelemetry tracing
-- Redis Cluster support
+| Category            | Technology                       |
+| ------------------- | -------------------------------- |
+| Language            | Java 17                          |
+| Framework           | Spring Boot                      |
+| Distributed Storage | Redis                            |
+| Atomic Execution    | Lua Scripting                    |
+| Build Tool          | Maven                            |
+| Containerization    | Docker                           |
+| Orchestration       | Docker Compose                   |
+| Load Balancer       | NGINX                            |
+| Benchmarking        | k6                               |
+| Metrics             | Micrometer                       |
+| Monitoring          | Spring Boot Actuator             |
+| Testing             | JUnit 5, Mockito, Testcontainers |
 
 ---
 
 # Documentation
 
-The `docs/` directory contains detailed documentation covering:
+The root README provides a high-level overview of the project.
 
-- System architecture
-- Algorithm comparison
-- Redis integration
-- Lua scripting
-- Distributed deployment
-- Resilience design
-- Metrics
-- Testing strategy
-- Performance benchmarking (planned)
+More detailed technical documentation is available throughout the repository.
+
+| Location              | Description                                                  |
+| --------------------- | ------------------------------------------------------------ |
+| `docs/README.md`      | Documentation index                                          |
+| `docs/benchmark/`     | Benchmark environment, methodology, validation, and analysis |
+| `benchmark/README.md` | Benchmark automation framework                               |
+| `benchmark/reports/`  | Generated benchmark reports                                  |
+| `benchmark/results/`  | Raw benchmark data                                           |
+| `benchmark/graphs/`   | Generated benchmark graphs                                   |
 
 ---
 
-# Status
+# Future Work
 
- **Feature Complete**
+Potential future enhancements include:
 
-Completed phases:
+* Redis Cluster support
+* Adaptive rate limiting
+* Dynamic rule reloading
+* OpenTelemetry integration
+* Grafana dashboards
 
-```
-✓ Foundation
-✓ Core Algorithms
-✓ Redis Integration
-✓ Lua Scripting
-✓ Resilience Layer
-✓ Metrics & Observability
-✓ Dynamic Configuration
-✓ HTTP Filter Integration
-✓ Docker Support
-✓ Multi-Instance Distributed Deployment
-```
-
-Current focus:
-
-```
-Performance Benchmarking
-Stress Testing
-Documentation
-Project Polish
-```
-
-The project has successfully demonstrated distributed rate limiting across multiple Spring Boot instances sharing a common Redis backend with globally enforced quotas.
+If you found this repository useful, consider giving it a ⭐.
