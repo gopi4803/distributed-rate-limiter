@@ -9,8 +9,7 @@ RESULTS_ROOT = os.path.join(ROOT, "results")
 OUTPUT_DIR = os.path.join(
     ROOT,
     "graphs",
-    "comparison",
-    "infrastructure"
+    "comparison"
 )
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -246,3 +245,35 @@ save("scaling-efficiency-comparison.png")
 
 print()
 print("Comparison graphs generated successfully.")
+
+############################################################
+# Failure Rate
+############################################################
+
+plt.figure(figsize=(8, 5))
+
+plt.plot(
+    [r["VirtualUsers"] for r in single],
+    [r["FailureRate"] for r in single],
+    marker="o",
+    label="Single Node"
+)
+
+plt.plot(
+    [r["VirtualUsers"] for r in distributed],
+    [r["FailureRate"] for r in distributed],
+    marker="o",
+    label="Distributed"
+)
+
+plt.grid(True)
+
+plt.legend()
+
+plt.title("HTTP Failure Rate Comparison")
+
+plt.xlabel("Virtual Users")
+
+plt.ylabel("Failure Rate")
+
+save("failure-rate-comparison.png")
