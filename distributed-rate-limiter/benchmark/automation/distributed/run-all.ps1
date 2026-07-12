@@ -78,6 +78,24 @@ Write-Host ""
     -Window $Window `
     -SkipRestart
 
+Set-BenchmarkConfiguration `
+    -Algorithm $Algorithm `
+    -Limit $InfrastructureLimit `
+    -Window $Window
+
+Restart-BenchmarkDeployment `
+    -Deployment $deployment
+
+foreach($vu in $infrastructureVUs){
+    & "$PSScriptRoot/run-infrastructure.ps1" `
+        -Algorithm $Algorithm `
+        -Limit $InfrastructureLimit `
+        -Window $Window `
+        -VUs $vu `
+        -Duration "30s" `
+        -SkipRestart
+}
+
 #
 # Infrastructure
 #
