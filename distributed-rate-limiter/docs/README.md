@@ -1,146 +1,149 @@
-# Distributed Rate Limiter
+# Documentation
 
-A production-inspired distributed rate limiter built from scratch using Java, Spring Boot, Redis, and Lua scripting.
+The root `README.md` provides a high-level overview of the project, while this directory contains detailed technical documentation covering the system architecture, benchmark framework, implementation details, and design decisions.
 
-The primary goal of this project is to explore distributed systems concepts such as:
+Documentation is organized by topic so individual components can evolve independently without overloading the root README.
 
-* Rate limiting algorithms
-* Shared state management
-* Concurrency and race conditions
-* Atomic operations
-* Horizontal scalability
-* Fault tolerance
-* Observability and benchmarking
+---
 
-## Motivation
+# Documentation Index
 
-Modern distributed applications must protect themselves from abuse, traffic spikes, and resource exhaustion.
+| Documentation | Description |
+|--------------|-------------|
+| [`architecture/`](architecture/README.md) | System architecture, request flow, deployment architecture, and component interactions. |
+| [`algorithms/`](algorithms/README.md) | Detailed implementation and analysis of the supported rate limiting algorithms. |
+| [`redis/`](redis/README.md) | Distributed state management, Redis data structures, Lua scripting, and atomic operations. |
+| [`benchmark/`](benchmark/README.md) | Benchmark methodology, execution framework, infrastructure metrics, behavioural analysis, and performance reports. |
+| [`testing/`](testing/README.md) | Unit, integration, concurrency, and Testcontainers-based testing strategy. |
+| [`resilience/`](resilience/README.md) | Circuit Breaker implementation, Fail Open / Fail Closed behaviour, and resilience design. |
+---
 
-This project demonstrates how production systems implement request throttling across multiple application instances while maintaining correctness under concurrent load.
-
-## Planned Features
-
-* Token Bucket algorithm
-* Sliding Window Counter algorithm
-* Redis-backed distributed state
-* Lua-based atomic operations
-* Pluggable key extraction (IP/User ID)
-* Multiple rate limiting policies
-* Servlet filter-based request interception
-* Circuit breaker support for Redis failures
-* Metrics and observability
-* Load testing and benchmarking
-* Multi-instance distributed validation
-
-## Tech Stack
-
-* Java 21
-* Spring Boot
-* Redis
-* Lua
-* Docker
-* JUnit 5
-* Testcontainers
-* Resilience4j
-* Micrometer
-* k6
-
-## Project Status
- 
-Under active development.
-
-Implementation is being developed incrementally in phases with each phase represented through Git commit history.
-
-## High-Level Architecture
+# Documentation Structure
 
 ```text
-Client
-   |
-Load Balancer
-   |
--------------------------
-|                       |
-App Instance 1    App Instance 2
-|                       |
--------------------------
-           |
-         Redis
+docs/
+│
+├── README.md
+│
+├── architecture/
+│   ├── system-overview.md
+│   ├── request-flow.md
+│   └── deployment.md
+│
+├── benchmark/
+│   ├── methodology.md
+│   ├── environment.md
+│   ├── infrastructure.md
+│   ├── behavioural.md
+│   ├── metrics.md
+│   └── analysis.md
+│
+├── redis/
+│   ├── lua-scripting.md
+│   ├── distributed-state.md
+│   └── atomic-operations.md
+│
+├── algorithms/
+│   ├── token-bucket.md
+│   ├── sliding-window.md
+│   └── fixed-window.md
+│
+├── testing/
+│   ├── unit-tests.md
+│   ├── integration-tests.md
+│   └── concurrency-tests.md
+│
+└── resilience/
+    ├── circuit-breaker.md
+    └── fail-open.md
 ```
-## Current Progress
 
-### Phase 0 - Core Abstractions 
+The directory structure is intentionally modular so that each topic can be documented independently.
 
-Implemented:
+---
 
-* `RateLimiter` contract
-* `RateLimitRule`
-* `RateLimitResult`
-* Clock abstraction (`ClockProvider`)
-* Algorithm registry
+# Reading Guide
 
-### Phase 1 - In-Memory Algorithms 
+If you're exploring the project for the first time, the following reading order is recommended.
 
-Implemented:
+## 1. Project Overview
 
-* Token Bucket algorithm
-* Sliding Window Counter algorithm
-
-Features:
-
-* Thread-safe implementation
-* Per-key concurrency control
-* Deterministic time abstraction for testing
-
-### Phase 2 - Redis Integration (Naive Implementation) 
-
-Objective:
-
-Move rate limiter state from JVM memory to Redis to support distributed deployments.
-
-Implemented:
-
-* Redis integration using Spring Data Redis (`StringRedisTemplate`)
-* Dockerized Redis for local development
-* Redis-backed distributed rate limiter
-* Redis key generation utility
-* Integration testing using Testcontainers
-
-Redis key format:
+Start with the repository root:
 
 ```text
-ratelimit:bucket:<key>
+README.md
 ```
 
-Example:
+This provides:
+
+* Project motivation
+* Feature overview
+* Architecture
+* Deployment modes
+* Benchmark highlights
+
+---
+
+## 2. Benchmark Framework
+
+Continue with:
 
 ```text
-ratelimit:bucket:user-123
+benchmark/README.md
 ```
 
-### Distributed Race Condition Demonstration
+This explains:
 
-The initial Redis implementation intentionally performs:
+* Benchmark architecture
+* Automation framework
+* Benchmark scenarios
+* Metrics collection
+* Generated artifacts
 
-```text
-GET -> CHECK LIMIT -> INCREMENT
-```
+---
 
-These operations are executed as separate Redis commands and are therefore not atomic.
+## 3. Detailed Technical Documentation
 
-A dedicated concurrency integration test was implemented using:
+Explore the documentation under `docs/` based on your area of interest.
 
-* 500 concurrent threads
-* Shared Redis key
-* Configured limit: 10 requests
+For example:
 
-Observed result:
+**Architecture**
 
-```text
-Allowed Requests = 500
-```
+Understand how requests flow through the system and how components interact.
 
-This demonstrates that naive read-check-update logic is unsafe in distributed systems and may significantly over-allocate requests under concurrent load.
+**Algorithms**
 
-### Next Phase
+Learn how each rate limiting algorithm works and the trade-offs involved.
 
-Replace the naive Redis implementation with Redis Lua scripts to guarantee atomic execution and eliminate race conditions.
+**Redis**
+
+Explore distributed state management, Lua scripting, and atomic execution.
+
+**Benchmarking**
+
+Understand the benchmark methodology, environment, metrics, and performance analysis.
+
+**Testing**
+
+Review the testing strategy, including unit, integration, concurrency, and Testcontainers-based testing.
+
+---
+
+# Documentation Principles
+
+The documentation follows a few simple principles.
+
+* Each document focuses on a single topic.
+* High-level concepts remain in the root README.
+* Detailed implementation belongs under `docs/`.
+* Benchmark execution is documented separately under `benchmark/README.md`.
+* Documentation evolves alongside the implementation.
+
+This organization keeps individual documents concise while making the overall project easier to navigate.
+
+---
+
+## Contributing
+
+When introducing new features or architectural changes, please update the relevant documentation alongside the implementation.
